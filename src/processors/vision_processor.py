@@ -151,7 +151,7 @@ class VisionProcessor:
             # Configure output
             output_config = vision.OutputConfig(
                 gcs_destination=vision.GcsDestination(
-                    uri=f"gs://{self.gcp_client.storage_client.bucket(GCP_CONFIG['storage_bucket']).name}/temp/"
+                    uri=f"gs://{self.gcp_client.storage_client.bucket(GCP_CONFIG['storage_bucket']).name}/temp/output-"  # Added suffix
                 ),
                 batch_size=VISION_CONFIG['batch_size']
             )
@@ -169,7 +169,11 @@ class VisionProcessor:
             )
 
             # Wait for the operation to complete
+            logger.info("Waiting for Vision API operation to complete...")
             result = operation.result(timeout=self.timeout)
+
+            # Log the raw response for debugging
+            logger.debug(f"Raw Vision API response: {result}")
 
             # Process and structure the results
             extracted_data = self._structure_vision_results(result)
@@ -197,7 +201,7 @@ class VisionProcessor:
             'pages': [],
             'metadata': {
                 'total_pages': 0,
-                'language_codes': set(),
+                'language_codes': [],
                 'average_confidence': 0.0
             }
         }
@@ -205,9 +209,15 @@ class VisionProcessor:
         try:
             total_confidence = 0.0
             page_count = 0
+            detected_languages = set()
 
+            # Vision APIのレスポンス構造に合わせて修正
             for response in vision_response.responses:
-                document = response.full_text_annotation
+                if not hasattr(response, 'document'):
+                    logger.warning("No document in response")
+                    continue
+
+                document = response.document
 
                 # Process each page
                 for page in document.pages:
@@ -215,18 +225,19 @@ class VisionProcessor:
                         'page_number': page_count + 1,
                         'blocks': [],
                         'confidence': 0.0,
-                        'language': document.pages[page_count].property.detected_languages
+                        'language': []
                     }
 
                     # Add detected languages to metadata
-                    for language in page.property.detected_languages:
-                        structured_data['metadata']['language_codes'].add(
-                            language.language_code
-                        )
+                    if hasattr(page, 'property') and hasattr(page.property, 'detected_languages'):
+                        for language in page.property.detected_languages:
+                            detected_languages.add(language.language_code)
+                            if language.language_code not in page_data['language']:
+                                page_data['language'].append(language.language_code)
 
                     # Process blocks of text
                     for block in page.blocks:
-                        if block.confidence < self.confidence_threshold:
+                        if not hasattr(block, 'confidence') or block.confidence < self.confidence_threshold:
                             continue
 
                         block_text = ''
@@ -242,7 +253,7 @@ class VisionProcessor:
                             'confidence': block.confidence,
                             'bounding_box': self._format_bounding_box(
                                 block.bounding_box
-                            )
+                            ) if hasattr(block, 'bounding_box') else None
                         }
                         page_data['blocks'].append(block_data)
                         page_data['confidence'] += block.confidence
@@ -258,9 +269,12 @@ class VisionProcessor:
             # Update metadata
             structured_data['metadata'].update({
                 'total_pages': page_count,
-                'language_codes': list(structured_data['metadata']['language_codes']),
+                'language_codes': list(detected_languages),
                 'average_confidence': total_confidence / page_count if page_count > 0 else 0
             })
+
+            # Log the structure for debugging
+            logger.debug(f"Structured data: {json.dumps(structured_data, indent=2)}")
 
             return structured_data
 
