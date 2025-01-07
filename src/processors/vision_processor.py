@@ -1,9 +1,9 @@
 # gcp-ocr-exp/src/processors/vision_processor.py
+from google.cloud import vision
 import os
 import json
 import logging
-from typing import Optional, Dict, Any, Tuple, List
-from google.cloud import vision
+from typing import Optional, Dict, Any, Tuple
 from datetime import datetime
 from ..utils.gcp_utils import GCPClient
 from config.settings import (
@@ -15,7 +15,6 @@ from config.settings import (
     GCP_CONFIG
 )
 
-# Configure logging
 logging.basicConfig(
     level=getattr(logging, LOGGING_CONFIG['level']),
     format=LOGGING_CONFIG['format'],
@@ -24,14 +23,170 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class VisionProcessor:
-    """Process documents using Google Cloud Vision API"""
-
     def __init__(self):
-        """Initialize the Vision processor with GCP client"""
         self.gcp_client = GCPClient()
         self.confidence_threshold = VISION_CONFIG['confidence_threshold']
         self.max_retries = VISION_CONFIG['max_retries']
         self.timeout = VISION_CONFIG['timeout']
+
+    def _process_with_vision_api(self, gcs_uri: str) -> Optional[Dict[str, Any]]:
+        """
+        Process document with Vision API
+        """
+        try:
+            # Create annotator client
+            client = self.gcp_client.vision_client
+
+            # For PDF/TIFF files, use document_text_detection
+            feature = vision.Feature(
+                type_=vision.Feature.Type.DOCUMENT_TEXT_DETECTION,
+            )
+
+            gcs_source = vision.GcsSource(uri=gcs_uri)
+            input_config = vision.InputConfig(
+                gcs_source=gcs_source,
+                # Explicitly specify the mime type
+                mime_type='application/pdf'
+            )
+
+            # Configure the output location for async requests
+            gcs_destination = vision.GcsDestination(
+                uri=f"gs://{GCP_CONFIG['storage_bucket']}/temp/output/"
+            )
+            output_config = vision.OutputConfig(
+                gcs_destination=gcs_destination,
+                batch_size=1  # Process one page at a time
+            )
+
+            # Create the async request
+            async_request = vision.AsyncAnnotateFileRequest(
+                features=[feature],
+                input_config=input_config,
+                output_config=output_config
+            )
+
+            # Make the request
+            operation = client.async_batch_annotate_files(
+                requests=[async_request]
+            )
+
+            logger.info("Waiting for Vision API operation to complete...")
+            operation_result = operation.result(timeout=self.timeout)
+
+            # Process the results
+            extracted_data = {
+                'pages': [],
+                'metadata': {
+                    'total_pages': 0,
+                    'language_codes': set(),
+                    'average_confidence': 0.0
+                }
+            }
+
+            total_confidence = 0.0
+            page_count = 0
+
+            for response in operation_result.responses:
+                # Get the JSON file from GCS
+                output_bucket = self.gcp_client.storage_client.bucket(GCP_CONFIG['storage_bucket'])
+                # List all the output files
+                blobs = list(output_bucket.list_blobs(prefix='temp/output/'))
+
+                for blob in blobs:
+                    if blob.name.endswith('.json'):
+                        # Download and parse the JSON content
+                        json_content = blob.download_as_text()
+                        ocr_response = json.loads(json_content)
+
+                        # Process each page in the response
+                        if 'responses' in ocr_response:
+                            for page_response in ocr_response['responses']:
+                                if 'fullTextAnnotation' in page_response:
+                                    page_count += 1
+                                    page_data = self._process_page_annotation(
+                                        page_response['fullTextAnnotation'],
+                                        page_count
+                                    )
+                                    extracted_data['pages'].append(page_data)
+                                    total_confidence += page_data['confidence']
+                                    extracted_data['metadata']['language_codes'].update(
+                                        page_data['language']
+                                    )
+
+            # Update metadata
+            if page_count > 0:
+                extracted_data['metadata'].update({
+                    'total_pages': page_count,
+                    'language_codes': list(extracted_data['metadata']['language_codes']),
+                    'average_confidence': total_confidence / page_count
+                })
+
+            # Clean up the output files
+            for blob in blobs:
+                blob.delete()
+
+            return extracted_data
+
+        except Exception as e:
+            logger.error(f"Error processing with Vision API: {str(e)}")
+            return None
+
+    def _process_page_annotation(
+        self,
+        annotation: Dict[str, Any],
+        page_number: int
+    ) -> Dict[str, Any]:
+        """
+        Process a single page annotation
+        """
+        page_data = {
+            'page_number': page_number,
+            'blocks': [],
+            'confidence': 0.0,
+            'language': [],
+            'text': annotation.get('text', '')
+        }
+
+        if 'pages' in annotation and len(annotation['pages']) > 0:
+            page = annotation['pages'][0]
+
+            # Extract language
+            if 'property' in page and 'detectedLanguages' in page['property']:
+                for lang in page['property']['detectedLanguages']:
+                    if lang.get('languageCode'):
+                        page_data['language'].append(lang['languageCode'])
+
+            # Process blocks
+            total_confidence = 0.0
+            block_count = 0
+
+            for block in page.get('blocks', []):
+                if 'confidence' not in block or block['confidence'] < self.confidence_threshold:
+                    continue
+
+                block_text = ''
+                for paragraph in block.get('paragraphs', []):
+                    for word in paragraph.get('words', []):
+                        word_text = ''.join(
+                            symbol.get('text', '')
+                            for symbol in word.get('symbols', [])
+                        )
+                        block_text += word_text + ' '
+
+                block_data = {
+                    'text': block_text.strip(),
+                    'confidence': block['confidence'],
+                    'bounding_box': block.get('boundingBox')
+                }
+
+                page_data['blocks'].append(block_data)
+                total_confidence += block['confidence']
+                block_count += 1
+
+            if block_count > 0:
+                page_data['confidence'] = total_confidence / block_count
+
+        return page_data
 
     def process_document(self, file_path: str) -> Tuple[bool, Optional[Dict[str, Any]], Optional[str]]:
         """
@@ -121,68 +276,6 @@ class VisionProcessor:
         except Exception as e:
             logger.error(f"Error validating file: {str(e)}")
             return False
-
-    def _process_with_vision_api(self, gcs_uri: str) -> Optional[Dict[str, Any]]:
-        """
-        Process document with Vision API
-
-        Args:
-            gcs_uri: URI of the document in Cloud Storage
-
-        Returns:
-            Optional[Dict[str, Any]]: Extracted data or None if processing failed
-        """
-        try:
-            # Ensure the URI starts with 'gs://'
-            if not gcs_uri.startswith('gs://'):
-                gcs_uri = f"gs://{self.gcp_client.storage_client.bucket(GCP_CONFIG['storage_bucket']).name}/{gcs_uri}"
-
-            # Create the request
-            input_config = vision.InputConfig(
-                gcs_source=vision.GcsSource(uri=gcs_uri),
-                mime_type=VISION_CONSTANTS['supported_mime_types']['.pdf']
-            )
-
-            # Configure features
-            features = [
-                vision.Feature(type_=vision.Feature.Type.DOCUMENT_TEXT_DETECTION)
-            ]
-
-            # Configure output
-            output_config = vision.OutputConfig(
-                gcs_destination=vision.GcsDestination(
-                    uri=f"gs://{self.gcp_client.storage_client.bucket(GCP_CONFIG['storage_bucket']).name}/temp/output-"  # Added suffix
-                ),
-                batch_size=VISION_CONFIG['batch_size']
-            )
-
-            # Create async request
-            request = vision.AsyncAnnotateFileRequest(
-                input_config=input_config,
-                features=features,
-                output_config=output_config
-            )
-
-            # Make the request
-            operation = self.gcp_client.vision_client.async_batch_annotate_files(
-                requests=[request]
-            )
-
-            # Wait for the operation to complete
-            logger.info("Waiting for Vision API operation to complete...")
-            result = operation.result(timeout=self.timeout)
-
-            # Log the raw response for debugging
-            logger.debug(f"Raw Vision API response: {result}")
-
-            # Process and structure the results
-            extracted_data = self._structure_vision_results(result)
-
-            return extracted_data
-
-        except Exception as e:
-            logger.error(f"Error processing with Vision API: {str(e)}")
-            return None
 
     def _structure_vision_results(
         self,
@@ -285,7 +378,7 @@ class VisionProcessor:
     def _format_bounding_box(
         self,
         bounding_box: Any
-    ) -> Dict[str, List[Dict[str, float]]]:
+    ) -> Dict[str, list[Dict[str, float]]]:
         """
         Format the bounding box coordinates
 
