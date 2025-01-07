@@ -1,0 +1,22 @@
+# Core dependencies
+python-dotenv
+google-cloud-vision
+google-cloud-storage
+
+# Utility packages
+python-dateutil
+typing-extensions
+
+# Logging and monitoring
+structlog
+
+# Development and testing
+pytest
+pytest-cov
+black
+flake8
+mypy
+
+# PDF processing
+pypdf
+pdf2image
