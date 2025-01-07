@@ -24,8 +24,8 @@ gcp-ocr-exp/
 │   └── app.log                     # アプリケーションログ
 ├── credentials/
 │   └── gcp-service-account.json    # GCPサービスアカウントキー
-├── requirements.txt                # 依存パッケージリスト
-├── README.md                       # プロジェクトの説明
-├── .gitignore                      # Git除外設定
+├── requirements.txt
+├── README.md
+├── .gitignore
 └── .env                            # 環境変数設定ファイル
 ```

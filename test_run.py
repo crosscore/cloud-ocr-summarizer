@@ -46,7 +46,7 @@ def main():
     # Process test file
     logger.info("Starting document processing...")
 
-    test_file = "data/input/test.pdf"  # テスト用PDFファイルのパス
+    test_file = "data/input/3page.pdf"  # テスト用PDFファイルのパス
 
     # Check if test file exists
     if not os.path.exists(test_file):
