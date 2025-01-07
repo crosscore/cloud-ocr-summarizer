@@ -132,6 +132,10 @@ class VisionProcessor:
             Optional[Dict[str, Any]]: Extracted data or None if processing failed
         """
         try:
+            # Ensure the URI starts with 'gs://'
+            if not gcs_uri.startswith('gs://'):
+                gcs_uri = f"gs://{self.gcp_client.storage_client.bucket(GCP_CONFIG['storage_bucket']).name}/{gcs_uri}"
+
             # Create the request
             input_config = vision.InputConfig(
                 gcs_source=vision.GcsSource(uri=gcs_uri),
@@ -146,7 +150,7 @@ class VisionProcessor:
             # Configure output
             output_config = vision.OutputConfig(
                 gcs_destination=vision.GcsDestination(
-                    uri=f"gs://{self.gcp_client.storage_client.bucket(gcs_uri).name}/temp/"
+                    uri=f"gs://{self.gcp_client.storage_client.bucket(GCP_CONFIG['storage_bucket']).name}/temp/"
                 ),
                 batch_size=VISION_CONFIG['batch_size']
             )

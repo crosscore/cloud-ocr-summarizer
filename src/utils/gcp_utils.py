@@ -99,7 +99,8 @@ class GCPClient:
                 f"gs://{GCP_CONFIG['storage_bucket']}/{destination_blob_name}"
             )
 
-            return True, blob.public_url
+            gcs_uri = f"gs://{GCP_CONFIG['storage_bucket']}/{destination_blob_name}"
+            return True, gcs_uri
 
         except Exception as e:
             error_msg = f"Failed to upload file: {str(e)}"
