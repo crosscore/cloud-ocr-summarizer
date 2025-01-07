@@ -22,8 +22,7 @@ gcp-ocr-exp/
 │       └── audit_log.jsonl         # 監査ログ
 ├── logs/
 │   └── app.log                     # アプリケーションログ
-├── credentials/
-│   └── gcp-service-account.json    # GCPサービスアカウントキー
+├── vision_api_test.py              # Vision APIテスト実行ファイル
 ├── requirements.txt
 ├── README.md
 ├── .gitignore
