@@ -11,7 +11,6 @@ from config.settings import (
     FILE_CONFIG,
     LOGGING_CONFIG,
     SECURITY_CONFIG,
-    VISION_CONSTANTS,
     GCP_CONFIG
 )
 
