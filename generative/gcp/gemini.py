@@ -48,26 +48,31 @@ class GeminiProcessor(LLMBase):
             Dictionary containing summaries and metadata
         """
         try:
-            # Handle cases where 'metadata' or 'language_codes' might be missing
-            if 'metadata' in ocr_data and 'language_codes' in ocr_data['metadata']:
-                primary_lang = self._get_primary_language(ocr_data['metadata']['language_codes'])
-            else:
-                logger.warning("OCR data is missing 'metadata' or 'language_codes'. Trying to get language from pages.")
-                page_languages = []
-                for page in ocr_data.get('pages', []):
-                    page_languages.extend(page.get('language', []))
-                primary_lang = self._get_primary_language(page_languages)
+            # Extract pages from the correct location in JSON structure
+            if not ocr_data.get('responses'):
+                logger.error("OCR data missing 'responses' key")
+                return None
 
-            language_settings = GEMINI_CONFIG['language_settings'][primary_lang]
+            pages = ocr_data['responses'][0].get('pages', [])
+            if not pages:
+                logger.error("No pages found in OCR data")
+                return None
+
+            # Get primary language from the first page
+            primary_lang = self._get_primary_language_from_pages(pages)
+
+            # Get language settings
+            language_settings = GEMINI_CONFIG['language_settings'].get(
+                primary_lang,
+                GEMINI_CONFIG['language_settings']['en']  # Default to English settings
+            )
 
             summaries = []
             # Process each page
-            for page in ocr_data['pages']:
-                # Extract text from blocks
-                page_text = ' '.join([block['text'] for block in page['blocks']])
-                if page_text:
+            for page in pages:
+                if page.get('text'):
                     page_summary = self._generate_page_summary(
-                        page_text,
+                        page['text'],
                         page['page_number'],
                         language_settings
                     )
@@ -99,15 +104,25 @@ class GeminiProcessor(LLMBase):
             logger.error(f"Error generating summary: {str(e)}")
             return None
 
-    def _get_primary_language(self, language_codes: List[str]) -> str:
-        """Determine primary language from detected languages"""
-        if not language_codes:
-            logger.warning("No language codes found in OCR data. Defaulting to English.")
-            return 'en'  # Default to English
-        # Use the first detected language
-        primary_lang = language_codes[0]
-        # If language not in settings, default to English
-        return primary_lang if primary_lang in GEMINI_CONFIG['language_settings'] else 'en'
+    def _get_primary_language_from_pages(self, pages: List[Dict[str, Any]]) -> str:
+        """Determine primary language from pages"""
+        try:
+            for page in pages:
+                if page.get('detected_languages'):
+                    # Sort languages by confidence and get the highest confidence language
+                    languages = sorted(
+                        page['detected_languages'],
+                        key=lambda x: x.get('confidence', 0),
+                        reverse=True
+                    )
+                    if languages:
+                        return languages[0]['language_code']
+
+            logger.warning("No language detected in pages. Defaulting to English.")
+            return 'en'
+        except Exception as e:
+            logger.warning(f"Error detecting language: {str(e)}. Defaulting to English.")
+            return 'en'
 
     def _generate_page_summary(
         self,

@@ -68,14 +68,14 @@ def main():
 
     # Find the latest OCR result file
     output_dir = FILE_CONFIG['vision_output_directory']
-    ocr_files = [f for f in os.listdir(output_dir) if f.startswith('vision_results_')]
-
+    ocr_files = [f for f in os.listdir(output_dir) if f.startswith('vision_results_') and f.endswith('.json')]
     if not ocr_files:
         logger.error("No OCR result files found")
         return
 
     # Sort by creation time and get the latest
     latest_file = max(ocr_files, key=lambda f: os.path.getctime(os.path.join(output_dir, f)))
+    print(f'latest_file: {latest_file}')
     file_path = os.path.join(output_dir, latest_file)
 
     # Load OCR result
