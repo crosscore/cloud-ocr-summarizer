@@ -48,8 +48,16 @@ class GeminiProcessor(LLMBase):
             Dictionary containing summaries and metadata
         """
         try:
-            # Get primary language for prompt selection
-            primary_lang = self._get_primary_language(ocr_data['metadata']['language_codes'])
+            # Handle cases where 'metadata' or 'language_codes' might be missing
+            if 'metadata' in ocr_data and 'language_codes' in ocr_data['metadata']:
+                primary_lang = self._get_primary_language(ocr_data['metadata']['language_codes'])
+            else:
+                logger.warning("OCR data is missing 'metadata' or 'language_codes'. Trying to get language from pages.")
+                page_languages = []
+                for page in ocr_data.get('pages', []):
+                    page_languages.extend(page.get('language', []))
+                primary_lang = self._get_primary_language(page_languages)
+
             language_settings = GEMINI_CONFIG['language_settings'][primary_lang]
 
             summaries = []
@@ -94,6 +102,7 @@ class GeminiProcessor(LLMBase):
     def _get_primary_language(self, language_codes: List[str]) -> str:
         """Determine primary language from detected languages"""
         if not language_codes:
+            logger.warning("No language codes found in OCR data. Defaulting to English.")
             return 'en'  # Default to English
         # Use the first detected language
         primary_lang = language_codes[0]
