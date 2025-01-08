@@ -67,7 +67,7 @@ def main():
     # Process test file
     logger.info("Starting document processing...")
 
-    test_file = os.path.join(FILE_CONFIG['input_directory'], "test_page.pdf")
+    test_file = os.path.join(FILE_CONFIG['input_directory'], "ocr_test.pdf")
 
     # Check if test file exists
     if not os.path.exists(test_file):

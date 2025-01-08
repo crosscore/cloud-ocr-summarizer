@@ -12,7 +12,8 @@ gcp-ocr-exp/
 │   │   ├── __init__.py
 │   │   ├── gcp_utils.py              # GCP初期化用
 │   │   ├── aws_utils.py              # AWS初期化用
-│   │   └── pdf_utils.py              # PDF処理用
+│   │   ├── pdf_utils.py              # PDF処理用
+│   │   └── token_counter.py          # トークン数計算用
 │   ├── generative/                   # 生成AI関連
 │   │   ├── base/
 │   │   │   ├── __init__.py
