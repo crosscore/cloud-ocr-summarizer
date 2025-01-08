@@ -3,9 +3,9 @@ import os
 import json
 import logging
 from typing import List, Dict, Any
+from datetime import datetime
 from google.cloud import vision
 from google.protobuf.json_format import MessageToDict
-from datetime import datetime
 from config.settings import (
     VISION_CONFIG, FILE_CONFIG, LOGGING_CONFIG,
     VISION_CONSTANTS, VISION_OUTPUT_CONFIG
@@ -88,9 +88,9 @@ class VisionProcessor:
             logger.info("Performing OCR...")
             response = self.vision_client.batch_annotate_files(request)
 
-            # Debug log
-            if self.output_config['debug_mode']:
-                logger.info(f"Raw response type: {type(response)}")
+            # Save raw response if configured
+            if self.output_config['save_raw_response']:
+                logger.debug(f"Raw response type: {type(response)}")
 
             # Save results
             logger.info("Saving OCR results...")
@@ -114,49 +114,6 @@ class VisionProcessor:
             file_ext,
             'application/octet-stream'
         )
-
-    def _save_results(self, response, input_file: str) -> str:
-        """
-        Saves OCR results to a JSON file based on configuration
-
-        Args:
-            response: Vision API response
-            input_file: Original input file path
-
-        Returns:
-            str: Path to the saved JSON file
-        """
-        try:
-            timestamp = datetime.datetime.now().strftime(FILE_CONFIG['timestamp_format'])
-            output_filename = FILE_CONFIG['vision_output_filename_pattern'].format(timestamp=timestamp)
-            output_path = os.path.join(FILE_CONFIG['vision_output_directory'], output_filename)
-
-            os.makedirs(os.path.dirname(output_path), exist_ok=True)
-
-            # Process response according to selected mode
-            result_dict = {
-                'simple': self._process_simple_output,
-                'detailed': self._process_detailed_output,
-            }.get(self.output_config['output_mode'], self._process_simple_output)(response)
-
-            # Save processed results
-            with open(output_path, 'w', encoding='utf-8') as f:
-                json.dump(result_dict, f, ensure_ascii=False, indent=2)
-
-            # Save raw response if configured
-            if self.output_config['save_raw_response']:
-                raw_output_path = output_path.replace('.json', '_raw.json')
-                raw_dict = MessageToDict(response, preserving_proto_field_name=True)
-                with open(raw_output_path, 'w', encoding='utf-8') as f:
-                    json.dump(raw_dict, f, ensure_ascii=False, indent=2)
-                logger.info(f"Raw response saved to: {raw_output_path}")
-
-            logger.info(f"OCR results saved to: {output_path}")
-            return output_path
-
-        except Exception as e:
-            logger.error(f"Failed to save OCR results: {str(e)}")
-            return ""
 
     def _process_simple_output(self, response) -> Dict[str, Any]:
         """Process response in simple mode"""
@@ -201,83 +158,160 @@ class VisionProcessor:
     def _process_detailed_output(self, response) -> Dict[str, Any]:
         """Process response in detailed mode"""
         response_dict = {
-            'files': []
+            'responses': []
         }
 
-        for file_response in response.responses:
-            file_data = {
-                'total_pages': file_response.total_pages,
-                'pages': []
-            }
+        try:
+            for file_response in response.responses:
+                file_data = {
+                    'pages': []
+                }
 
-            if hasattr(file_response, 'responses') and file_response.responses:
                 for page_response in file_response.responses:
                     if not hasattr(page_response, 'full_text_annotation'):
                         continue
 
                     text_annotation = page_response.full_text_annotation
+                    if not text_annotation or not text_annotation.pages:
+                        continue
+
+                    page = text_annotation.pages[0]
                     page_data = {
                         'page_number': len(file_data['pages']) + 1,
                         'text': text_annotation.text,
-                        'width': text_annotation.pages[0].width,
-                        'height': text_annotation.pages[0].height,
+                        'width': page.width,
+                        'height': page.height,
+                        'confidence': page.confidence,
                         'blocks': []
                     }
 
                     # Add language detection
-                    if (hasattr(text_annotation.pages[0], 'property') and
-                        hasattr(text_annotation.pages[0].property, 'detected_languages')):
+                    if (hasattr(page, 'property') and
+                        hasattr(page.property, 'detected_languages')):
                         page_data['detected_languages'] = [
                             {
                                 'language_code': lang.language_code,
                                 'confidence': lang.confidence
                             }
-                            for lang in text_annotation.pages[0].property.detected_languages
+                            for lang in page.property.detected_languages
                         ]
 
-                    # Process blocks if requested
-                    if self.output_config['include_bounding_boxes']:
-                        for block in text_annotation.pages[0].blocks:
-                            if (block.confidence <
-                                self.output_config['min_confidence_threshold']):
-                                continue
+                    # Process blocks
+                    for block in page.blocks:
+                        if (block.confidence <
+                            self.output_config['min_confidence_threshold']):
+                            continue
 
-                            block_data = {
-                                'bounding_box': {
-                                    'vertices': [
-                                        {'x': vertex.x, 'y': vertex.y}
-                                        for vertex in block.bounding_box.normalized_vertices
-                                    ]
-                                }
+                        block_data = {
+                            'text': '',
+                            'confidence': block.confidence if self.output_config['include_confidence'] else None
+                        }
+
+                        # Add bounding box if configured
+                        if self.output_config['include_bounding_boxes']:
+                            vertices = block.bounding_box.vertices
+                            block_data['bounding_box'] = {
+                                'vertices': [
+                                    {'x': vertex.x, 'y': vertex.y}
+                                    for vertex in vertices
+                                ]
                             }
 
-                            if self.output_config['include_confidence']:
-                                block_data['confidence'] = block.confidence
+                        # Extract text and build block content
+                        for paragraph in block.paragraphs:
+                            for word in paragraph.words:
+                                word_text = ''.join(
+                                    symbol.text for symbol in word.symbols
+                                )
+                                block_data['text'] += word_text + ' '
 
-                            if self.output_config['include_word_level']:
-                                block_data['text'] = ''
-                                block_data['words'] = []
-
-                                for paragraph in block.paragraphs:
-                                    for word in paragraph.words:
-                                        word_text = ''.join(
-                                            symbol.text for symbol in word.symbols
-                                        )
-                                        block_data['text'] += word_text + ' '
-
-                                        if word.confidence >= self.output_config['min_confidence_threshold']:
-                                            word_data = {'text': word_text}
-                                            if self.output_config['include_confidence']:
-                                                word_data['confidence'] = word.confidence
-                                            block_data['words'].append(word_data)
-
-                            page_data['blocks'].append(block_data)
+                        block_data['text'] = block_data['text'].strip()
+                        page_data['blocks'].append(block_data)
 
                     file_data['pages'].append(page_data)
 
-            response_dict['files'].append(file_data)
+                response_dict['responses'].append(file_data)
+
+        except Exception as e:
+            logger.error(f"Error in detailed output processing: {str(e)}")
+            raise
 
         return response_dict
+
+    def _save_results(self, response, input_file: str) -> str:
+        """
+        Saves OCR results to a JSON file based on configuration
+        """
+        try:
+            timestamp = datetime.now().strftime(FILE_CONFIG['timestamp_format'])
+            output_filename = FILE_CONFIG['vision_output_filename_pattern'].format(timestamp=timestamp)
+            output_path = os.path.join(FILE_CONFIG['vision_output_directory'], output_filename)
+
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+            # Process response according to selected mode
+            try:
+                result_dict = {
+                    'simple': self._process_simple_output,
+                    'detailed': self._process_detailed_output,
+                }.get(self.output_config['output_mode'], self._process_simple_output)(response)
+            except Exception as e:
+                logger.error(f"Error processing response: {str(e)}")
+                raise
+
+            # Save processed results
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(result_dict, f, ensure_ascii=False, indent=2)
+
+            # Save raw response if configured
+            if self.output_config['save_raw_response']:
+                raw_output_path = output_path.replace('.json', '_raw.json')
+                raw_dict = {
+                    'responses': []
+                }
+
+                try:
+                    for file_resp in response.responses:
+                        file_data = {
+                            'responses': []
+                        }
+
+                        for page_resp in file_resp.responses:
+                            if hasattr(page_resp, 'full_text_annotation'):
+                                annotation = page_resp.full_text_annotation
+                                page_data = {
+                                    'full_text_annotation': {
+                                        'text': annotation.text,
+                                        'pages': []
+                                    }
+                                }
+
+                                for page in annotation.pages:
+                                    page_info = {
+                                        'width': page.width,
+                                        'height': page.height,
+                                        'confidence': page.confidence
+                                    }
+                                    page_data['full_text_annotation']['pages'].append(page_info)
+
+                                file_data['responses'].append(page_data)
+
+                        raw_dict['responses'].append(file_data)
+
+                    with open(raw_output_path, 'w', encoding='utf-8') as f:
+                        json.dump(raw_dict, f, ensure_ascii=False, indent=2)
+                    logger.info(f"Raw response saved to: {raw_output_path}")
+
+                except Exception as e:
+                    logger.error(f"Error saving raw response: {str(e)}")
+                    # Continue execution even if raw response saving fails
+
+            logger.info(f"OCR results saved to: {output_path}")
+            return output_path
+
+        except Exception as e:
+            logger.error(f"Failed to save OCR results: {str(e)}")
+            return ""
 
     def _process_full_output(self, response) -> Dict[str, Any]:
         """Process response in full mode - preserve complete API response structure"""
