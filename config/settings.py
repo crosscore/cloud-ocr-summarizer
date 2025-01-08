@@ -16,7 +16,6 @@ def ensure_directories_exist():
         os.path.join(PROJECT_ROOT, 'data', 'input'),
         os.path.join(PROJECT_ROOT, 'data', 'output'),
         os.path.join(PROJECT_ROOT, 'logs'),
-        os.path.join(PROJECT_ROOT, 'credentials')
     ]
 
     for directory in directories:
@@ -98,5 +97,5 @@ VISION_CONSTANTS = {
         '.jpeg': 'image/jpeg'
     },
     'max_pages_per_request': 5,  # Vision APIの1リクエストあたりの最大ページ数
-    'default_language_hints': ['ja', 'en']  # デフォルトの言語ヒント
+    'default_language_hints': ['ja', 'en']
 }
