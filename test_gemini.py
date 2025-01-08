@@ -21,22 +21,6 @@ def load_ocr_result(file_path: str):
         logger.error(f"Error loading OCR result: {str(e)}")
         return None
 
-    """Save summary results to a new JSON file"""
-    try:
-        output_dir = FILE_CONFIG['gemini_output_directory']
-        timestamp = datetime.datetime.now().strftime(FILE_CONFIG['timestamp_format'])
-        output_filename = FILE_CONFIG['gemini_output_filename_pattern'].format(timestamp=timestamp)
-        output_file = os.path.join(output_dir, output_filename)
-
-        with open(output_file, 'w', encoding='utf-8') as f:
-            json.dump(summary_data, f, ensure_ascii=False, indent=2)
-
-        logger.info(f"Summary saved to: {output_file}")
-        return output_file
-    except Exception as e:
-        logger.error(f"Error saving summary: {str(e)}")
-        return None
-
 def display_summary(summary_data: dict):
     """Display summary results in a readable format"""
     logger.info("=== Summary Results ===")
@@ -61,9 +45,8 @@ def save_summary_result(summary_data: dict, original_filename: str):
     """Save summary results to a new JSON file"""
     try:
         output_dir = FILE_CONFIG['gemini_output_directory']
-        timestamp = datetime.datetime.now().strftime(FILE_CONFIG['timestamp_format']) # 変更
-        # base_name = os.path.splitext(os.path.basename(original_filename))[0] # 不要なので削除
-        output_filename = FILE_CONFIG['gemini_output_filename_pattern'].format(timestamp=timestamp) # 変更
+        timestamp = datetime.datetime.now().strftime(FILE_CONFIG['timestamp_format'])
+        output_filename = FILE_CONFIG['gemini_output_filename_pattern'].format(timestamp=timestamp)
         output_file = os.path.join(output_dir, output_filename)
 
         with open(output_file, 'w', encoding='utf-8') as f:
@@ -106,7 +89,7 @@ def main():
 
     if summary_result:
         # Save summary
-        save_summary_result(summary_result, file_path)
+        save_summary_result(summary_result, file_path) # 変更: file_pathを渡す
 
         # Display results
         display_summary(summary_result)

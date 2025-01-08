@@ -1,19 +1,15 @@
 # gcp-ocr-exp/src/processors/vision_processor.py
-from google.cloud import vision
 import os
 import json
 import logging
-from typing import Optional, Dict, Any, Tuple
-from datetime import datetime
-from ..utils.gcp_utils import GCPClient
-from config.settings import (
-    VISION_CONFIG,
-    FILE_CONFIG,
-    LOGGING_CONFIG,
-    SECURITY_CONFIG,
-    GCP_CONFIG
-)
+from typing import List, Dict, Any
+from google.cloud import vision
+from google.protobuf.json_format import MessageToJson
+from config.settings import VISION_CONFIG, FILE_CONFIG, LOGGING_CONFIG, VISION_CONSTANTS
+from src.utils.gcp_utils import GCPClient
+import datetime
 
+# Configure logging
 logging.basicConfig(
     level=getattr(logging, LOGGING_CONFIG['level']),
     format=LOGGING_CONFIG['format'],
@@ -22,403 +18,172 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class VisionProcessor:
-    def __init__(self):
-        self.gcp_client = GCPClient()
-        self.confidence_threshold = VISION_CONFIG['confidence_threshold']
-        self.max_retries = VISION_CONFIG['max_retries']
-        self.timeout = VISION_CONFIG['timeout']
+    """Class for processing documents using Google Cloud Vision API"""
 
-    def _process_with_vision_api(self, gcs_uri: str) -> Optional[Dict[str, Any]]:
+    def __init__(self):
+        """Initializes the VisionProcessor with necessary configurations"""
+        self.vision_config = VISION_CONFIG
+        self.file_config = FILE_CONFIG
+        self.gcp_client = GCPClient()
+        self.vision_client = self.gcp_client.vision_client
+
+    def process_document(self, file_path: str) -> str:
         """
-        Process document with Vision API
+        Processes a document using the Vision API
+
+        Args:
+            file_path: Path to the document
+
+        Returns:
+            Path to the saved JSON file containing OCR results
         """
         try:
-            # Create annotator client
-            client = self.gcp_client.vision_client
+            # Check if file exists
+            if not os.path.exists(file_path):
+                raise FileNotFoundError(f"File not found: {file_path}")
 
-            # For PDF/TIFF files, use document_text_detection
-            feature = vision.Feature(
-                type_=vision.Feature.Type.DOCUMENT_TEXT_DETECTION,
-            )
+            # Check if file size is within limits
+            file_size = os.path.getsize(file_path)
+            if file_size > self.file_config['max_file_size']:
+                raise ValueError(
+                    f"File size exceeds the maximum limit of "
+                    f"{self.file_config['max_file_size']} bytes"
+                )
 
-            gcs_source = vision.GcsSource(uri=gcs_uri)
-            input_config = vision.InputConfig(
-                gcs_source=gcs_source,
-                # Explicitly specify the mime type
-                mime_type='application/pdf'
-            )
+            # Upload file to GCS
+            logger.info(f"Uploading {file_path} to GCS...")
+            success, gcs_uri = self.gcp_client.upload_to_storage(file_path)
+            if not success:
+                raise Exception(f"Failed to upload file to GCS: {gcs_uri}")
 
-            # Configure the output location for async requests
-            gcs_destination = vision.GcsDestination(
-                uri=f"gs://{GCP_CONFIG['storage_bucket']}/temp/output/"
-            )
-            output_config = vision.OutputConfig(
-                gcs_destination=gcs_destination,
-                batch_size=1  # Process one page at a time
-            )
-
-            # Create the async request
-            async_request = vision.AsyncAnnotateFileRequest(
-                features=[feature],
-                input_config=input_config,
-                output_config=output_config
-            )
-
-            # Make the request
-            operation = client.async_batch_annotate_files(
-                requests=[async_request]
-            )
-
-            logger.info("Waiting for Vision API operation to complete...")
-            operation_result = operation.result(timeout=self.timeout)
-
-            # Process the results
-            extracted_data = {
-                'pages': [],
-                'metadata': {
-                    'total_pages': 0,
-                    'language_codes': set(),
-                    'average_confidence': 0.0
-                }
+            # Prepare OCR request
+            logger.info("Preparing OCR request...")
+            features = [
+                {"type_": vision.Feature.Type.TEXT_DETECTION},
+                {"type_": vision.Feature.Type.DOCUMENT_TEXT_DETECTION}
+            ]
+            mime_type = self._get_mime_type(file_path)
+            input_config = {
+                "gcs_source": {"uri": gcs_uri},
+                "mime_type": mime_type
+            }
+            context = {
+                "language_hints": self.vision_config['default_language_hints']
+            }
+            request = {
+                "input_config": input_config,
+                "features": features,
+                "image_context": context,
+                "pages": list(range(1, VISION_CONSTANTS['max_pages_per_request'] + 1))
             }
 
-            total_confidence = 0.0
-            page_count = 0
+            # Perform OCR
+            logger.info("Performing OCR...")
+            response = self.vision_client.annotate_file(request=request)
 
-            for response in operation_result.responses:
-                # Get the JSON file from GCS
-                output_bucket = self.gcp_client.storage_client.bucket(GCP_CONFIG['storage_bucket'])
-                # List all the output files
-                blobs = list(output_bucket.list_blobs(prefix='temp/output/'))
+            # Save results to file
+            logger.info("Saving OCR results...")
+            output_path = self._save_results(response, file_path)
 
-                for blob in blobs:
-                    if blob.name.endswith('.json'):
-                        # Download and parse the JSON content
-                        json_content = blob.download_as_text()
-                        ocr_response = json.loads(json_content)
+            # Delete file from GCS (optional)
+            if os.getenv('DELETE_AFTER_PROCESSING', 'false').lower() == 'true':
+                logger.info(f"Deleting {gcs_uri} from GCS...")
+                self.gcp_client.delete_from_storage(gcs_uri)
 
-                        # Process each page in the response
-                        if 'responses' in ocr_response:
-                            for page_response in ocr_response['responses']:
-                                if 'fullTextAnnotation' in page_response:
-                                    page_count += 1
-                                    page_data = self._process_page_annotation(
-                                        page_response['fullTextAnnotation'],
-                                        page_count
-                                    )
-                                    extracted_data['pages'].append(page_data)
-                                    total_confidence += page_data['confidence']
-                                    extracted_data['metadata']['language_codes'].update(
-                                        page_data['language']
-                                    )
-
-            # Update metadata
-            if page_count > 0:
-                extracted_data['metadata'].update({
-                    'total_pages': page_count,
-                    'language_codes': list(extracted_data['metadata']['language_codes']),
-                    'average_confidence': total_confidence / page_count
-                })
-
-            # Clean up the output files
-            for blob in blobs:
-                blob.delete()
-
-            return extracted_data
+            return output_path
 
         except Exception as e:
-            logger.error(f"Error processing with Vision API: {str(e)}")
-            return None
+            logger.error(f"Error processing document with Vision API: {str(e)}")
+            return ""
 
-    def _process_page_annotation(
+    def _get_mime_type(self, file_path: str) -> str:
+        """
+        Gets the MIME type of a file based on its extension
+
+        Args:
+            file_path: Path to the file
+
+        Returns:
+            MIME type of the file
+        """
+        file_ext = os.path.splitext(file_path)[1].lower()
+        return VISION_CONSTANTS['supported_mime_types'].get(
+            file_ext,
+            'application/octet-stream'
+        )
+
+    def _parse_ocr_results(
         self,
-        annotation: Dict[str, Any],
-        page_number: int
-    ) -> Dict[str, Any]:
+        response: vision.AnnotateFileResponse
+    ) -> List[Dict[str, Any]]:
         """
-        Process a single page annotation
+        Parses OCR results from the Vision API response
+
+        Args:
+            response: Vision API response
+
+        Returns:
+            List of dictionaries containing parsed OCR results
         """
-        page_data = {
-            'page_number': page_number,
-            'blocks': [],
-            'confidence': 0.0,
-            'language': [],
-            'text': annotation.get('text', '')
-        }
+        results = []
+        for page_response in response.responses:
+            page_data = {
+                'page_number': page_response.context.page_number,
+                'text': page_response.full_text_annotation.text,
+                'blocks': [],
+                'confidence': page_response.full_text_annotation.pages[0].confidence,
+                'language': [
+                    detected_language.language_code for detected_language
+                    in page_response.full_text_annotation.pages[0].property.detected_languages
+                ]
+            }
 
-        if 'pages' in annotation and len(annotation['pages']) > 0:
-            page = annotation['pages'][0]
-
-            # Extract language
-            if 'property' in page and 'detectedLanguages' in page['property']:
-                for lang in page['property']['detectedLanguages']:
-                    if lang.get('languageCode'):
-                        page_data['language'].append(lang['languageCode'])
-
-            # Process blocks
-            total_confidence = 0.0
-            block_count = 0
-
-            for block in page.get('blocks', []):
-                if 'confidence' not in block or block['confidence'] < self.confidence_threshold:
-                    continue
-
-                block_text = ''
-                for paragraph in block.get('paragraphs', []):
-                    for word in paragraph.get('words', []):
-                        word_text = ''.join(
-                            symbol.get('text', '')
-                            for symbol in word.get('symbols', [])
-                        )
-                        block_text += word_text + ' '
-
+            for block in page_response.full_text_annotation.pages[0].blocks:
                 block_data = {
-                    'text': block_text.strip(),
-                    'confidence': block['confidence'],
-                    'bounding_box': block.get('boundingBox')
+                    'text': '',
+                    'confidence': block.confidence,
+                    'bounding_box': {
+                        'normalizedVertices': [
+                            {
+                                'x': vertex.x,
+                                'y': vertex.y
+                            } for vertex in block.bounding_box.normalized_vertices
+                        ]
+                    }
                 }
+
+                for paragraph in block.paragraphs:
+                    for word in paragraph.words:
+                        word_text = ''.join([
+                            symbol.text for symbol in word.symbols
+                        ])
+                        block_data['text'] += word_text + ' '
 
                 page_data['blocks'].append(block_data)
-                total_confidence += block['confidence']
-                block_count += 1
 
-            if block_count > 0:
-                page_data['confidence'] = total_confidence / block_count
+            results.append(page_data)
 
-        return page_data
+        return results
 
-    def process_document(self, file_path: str) -> Tuple[bool, Optional[Dict[str, Any]], Optional[str]]:
-        """
-        Process a document through the complete workflow
-
-        Args:
-            file_path: Path to the local document file
-
-        Returns:
-            Tuple of (success status, extracted data dictionary, error message if any)
-        """
+    def _save_results(self, response: vision.AnnotateFileResponse, input_file: str) -> str:
+        """Saves OCR results to a JSON file"""
         try:
-            # Validate file
-            if not self._validate_file(file_path):
-                return False, None, "Invalid file format or size"
+            timestamp = datetime.datetime.now().strftime(FILE_CONFIG['timestamp_format'])
+            output_filename = FILE_CONFIG['vision_output_filename_pattern'].format(timestamp=timestamp)
+            output_path = os.path.join(FILE_CONFIG['vision_output_directory'], output_filename)
 
-            # Generate unique identifier for this processing
-            process_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+            # Convert the response object to a JSON formatted string.
+            json_string = MessageToJson(response)
 
-            # Upload to Cloud Storage
-            file_name = os.path.basename(file_path)
-            destination_blob_name = os.path.join(
-                'temp',
-                process_id,
-                file_name
-            )
+            # Save the JSON string to a file.
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(json_string)
 
-            upload_success, gcs_uri = self.gcp_client.upload_to_storage(
-                file_path,
-                destination_blob_name
-            )
-
-            if not upload_success:
-                return False, None, f"Failed to upload file: {gcs_uri}"
-
-            # Process with Vision API
-            result_data = self._process_with_vision_api(gcs_uri)
-            if not result_data:
-                return False, None, "Failed to process with Vision API"
-
-            # Save results
-            self._save_results(result_data, process_id)
-
-            # Clean up temporary files if configured
-            if SECURITY_CONFIG['delete_after_processing']:
-                self.gcp_client.delete_from_storage(destination_blob_name)
-
-            # Save audit log if enabled
-            if SECURITY_CONFIG['enable_audit_logs']:
-                self._save_audit_log(file_path, process_id, result_data)
-
-            return True, result_data, None
-
+            logger.info(f"OCR results saved to: {output_path}")
+            return output_path
         except Exception as e:
-            error_msg = f"Error processing document: {str(e)}"
-            logger.error(error_msg)
-            return False, None, error_msg
-
-    def _validate_file(self, file_path: str) -> bool:
-        """
-        Validate file extension and size
-
-        Args:
-            file_path: Path to the file to validate
-
-        Returns:
-            bool: Whether the file is valid
-        """
-        try:
-            # Check file extension
-            extension = os.path.splitext(file_path)[1].lower()
-            if extension not in FILE_CONFIG['allowed_extensions']:
-                logger.error(f"Invalid file extension: {extension}")
-                return False
-
-            # Check file size
-            file_size = os.path.getsize(file_path)
-            if file_size > FILE_CONFIG['max_file_size']:
-                logger.error(
-                    f"File size {file_size} exceeds limit of "
-                    f"{FILE_CONFIG['max_file_size']}"
-                )
-                return False
-
-            return True
-
-        except Exception as e:
-            logger.error(f"Error validating file: {str(e)}")
-            return False
-
-    def _structure_vision_results(
-        self,
-        vision_response: Any
-    ) -> Dict[str, Any]:
-        """
-        Structure the Vision API results into a consistent format
-
-        Args:
-            vision_response: Raw response from Vision API
-
-        Returns:
-            Dict[str, Any]: Structured data
-        """
-        structured_data = {
-            'pages': [],
-            'metadata': {
-                'total_pages': 0,
-                'language_codes': [],
-                'average_confidence': 0.0
-            }
-        }
-
-        try:
-            total_confidence = 0.0
-            page_count = 0
-            detected_languages = set()
-
-            # Vision APIのレスポンス構造に合わせて修正
-            for response in vision_response.responses:
-                if not hasattr(response, 'document'):
-                    logger.warning("No document in response")
-                    continue
-
-                document = response.document
-
-                # Process each page
-                for page in document.pages:
-                    page_data = {
-                        'page_number': page_count + 1,
-                        'blocks': [],
-                        'confidence': 0.0,
-                        'language': []
-                    }
-
-                    # Add detected languages to metadata
-                    if hasattr(page, 'property') and hasattr(page.property, 'detected_languages'):
-                        for language in page.property.detected_languages:
-                            detected_languages.add(language.language_code)
-                            if language.language_code not in page_data['language']:
-                                page_data['language'].append(language.language_code)
-
-                    # Process blocks of text
-                    for block in page.blocks:
-                        if not hasattr(block, 'confidence') or block.confidence < self.confidence_threshold:
-                            continue
-
-                        block_text = ''
-                        for paragraph in block.paragraphs:
-                            for word in paragraph.words:
-                                word_text = ''.join(
-                                    [symbol.text for symbol in word.symbols]
-                                )
-                                block_text += word_text + ' '
-
-                        block_data = {
-                            'text': block_text.strip(),
-                            'confidence': block.confidence,
-                            'bounding_box': self._format_bounding_box(
-                                block.bounding_box
-                            ) if hasattr(block, 'bounding_box') else None
-                        }
-                        page_data['blocks'].append(block_data)
-                        page_data['confidence'] += block.confidence
-
-                    # Calculate page average confidence
-                    if page_data['blocks']:
-                        page_data['confidence'] /= len(page_data['blocks'])
-                        total_confidence += page_data['confidence']
-
-                    structured_data['pages'].append(page_data)
-                    page_count += 1
-
-            # Update metadata
-            structured_data['metadata'].update({
-                'total_pages': page_count,
-                'language_codes': list(detected_languages),
-                'average_confidence': total_confidence / page_count if page_count > 0 else 0
-            })
-
-            # Log the structure for debugging
-            logger.debug(f"Structured data: {json.dumps(structured_data, indent=2)}")
-
-            return structured_data
-
-        except Exception as e:
-            logger.error(f"Error structuring Vision results: {str(e)}")
-            return structured_data
-
-    def _format_bounding_box(
-        self,
-        bounding_box: Any
-    ) -> Dict[str, list[Dict[str, float]]]:
-        """
-        Format the bounding box coordinates
-
-        Args:
-            bounding_box: Vision API bounding box
-
-        Returns:
-            Dict with formatted coordinates
-        """
-        return {
-            'vertices': [
-                {'x': vertex.x, 'y': vertex.y}
-                for vertex in bounding_box.vertices
-            ]
-        }
-
-    def _save_results(
-        self,
-        result_data: Dict[str, Any],
-        process_id: str
-    ) -> None:
-        """
-        Save processing results to file
-
-        Args:
-            result_data: Processed data to save
-            process_id: Unique identifier for this process
-        """
-        try:
-            output_file = os.path.join(
-                FILE_CONFIG['output_directory'],
-                f'vision_results_{process_id}.json'
-            )
-
-            with open(output_file, 'w', encoding='utf-8') as f:
-                json.dump(result_data, f, ensure_ascii=False, indent=2)
-
-            logger.info(f"Saved results to {output_file}")
-
-        except Exception as e:
-            logger.error(f"Error saving results: {str(e)}")
+            logger.error(f"Failed to save OCR results: {str(e)}")
+            return ""
 
     def _save_audit_log(
         self,

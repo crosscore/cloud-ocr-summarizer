@@ -1,14 +1,24 @@
-# gcp-ocr-exp/test_run.py
+# gcp-ocr-exp/test_vision_api.py
 from src.processors.vision_processor import VisionProcessor
 import logging
-from config.settings import LOGGING_CONFIG
+from config.settings import LOGGING_CONFIG, FILE_CONFIG
 import os
+import json
 
 logging.basicConfig(
     level=getattr(logging, LOGGING_CONFIG['level']),
     format=LOGGING_CONFIG['format']
 )
 logger = logging.getLogger(__name__)
+
+def load_ocr_result(file_path: str):
+    """Load OCR result from JSON file"""
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Error loading OCR result: {str(e)}")
+        return None
 
 def display_results(result_data):
     """
@@ -21,20 +31,25 @@ def display_results(result_data):
 
     # Display metadata
     logger.info("\nMetadata:")
-    logger.info(f"Total Pages: {result_data['metadata']['total_pages']}")
-    logger.info(f"Detected Languages: {', '.join(result_data['metadata']['language_codes'])}")
-    logger.info(f"Average Confidence: {result_data['metadata']['average_confidence']:.2f}")
+    logger.info(f"Total Pages: {len(result_data['responses'])}")
+    logger.info(f"Detected Languages: {', '.join(result_data['responses'][0]['fullTextAnnotation']['pages'][0]['property']['detectedLanguages'][0]['languageCode'])}")
+    logger.info(f"Average Confidence: {result_data['responses'][0]['fullTextAnnotation']['pages'][0]['confidence']:.2f}")
 
     # Display sample text from each page
     logger.info("\nSample text from each page:")
-    for page in result_data['pages']:
-        logger.info(f"\nPage {page['page_number']}:")
-        logger.info(f"Page Confidence: {page['confidence']:.2f}")
+    for page in result_data['responses']:
+        logger.info(f"\nPage {page['context']['pageNumber']}:")
+        logger.info(f"Page Confidence: {page['fullTextAnnotation']['pages'][0]['confidence']:.2f}")
 
         # Display first 3 text blocks from the page
-        for i, block in enumerate(page['blocks'][:3], 1):
+        for i, block in enumerate(page['fullTextAnnotation']['pages'][0]['blocks'][:3], 1):
             logger.info(f"Block {i}:")
-            logger.info(f"Text: {block['text']}")
+            text = ""
+            for paragraph in block['paragraphs']:
+                for word in paragraph['words']:
+                    for symbol in word['symbols']:
+                        text += symbol['text']
+            logger.info(f"Text: {text}")
             logger.info(f"Confidence: {block['confidence']:.2f}")
 
 def main():
@@ -51,35 +66,41 @@ def main():
         logger.error(f"Test file not found: {test_file}")
         return
 
-    success, result_data, error = processor.process_document(test_file)
+    result_path = processor.process_document(test_file)
 
-    if success:
+    if result_path:
         logger.info("Successfully processed document")
 
-        # Display results
-        display_results(result_data)
+        # Load OCR results from the saved JSON file
+        result_data = load_ocr_result(result_path)
 
-        # Show output file location
-        output_dir = os.path.join(os.path.dirname(test_file), '..', 'output')
-        logger.info(f"\nDetailed results have been saved to: {output_dir}")
+        if result_data:
+            # Display results
+            display_results(result_data)
 
-        # Display list of output files
-        output_files = [f for f in os.listdir(output_dir) if f.startswith('vision_results_')]
-        if output_files:
-            logger.info("Output files:")
-            for file in output_files:
-                logger.info(f"- {file}")
+            # Show output file location
+            output_dir = FILE_CONFIG['vision_output_directory']
+            logger.info(f"\nDetailed results have been saved to: {output_dir}")
+
+            # Display list of output files
+            output_files = [f for f in os.listdir(output_dir) if f.startswith('vision_results_')]
+            if output_files:
+                logger.info("Output files:")
+                for file in output_files:
+                    logger.info(f"- {file}")
+        else:
+            logger.error("Failed to load OCR results from the saved file.")
     else:
-        logger.error(f"Failed to process document: {error}")
+        logger.error("Failed to process document")
 
 def cleanup_test_files():
     """
     Clean up test output files (optional)
     """
     try:
-        output_dir = "data/output"
+        output_dir = FILE_CONFIG['output_directory']
         for file in os.listdir(output_dir):
-            if file.startswith('vision_results_') or file == 'audit_log.jsonl':
+            if file.startswith('vision_results_') or file.startswith('gemini_summary_') or file == 'audit_log.jsonl':
                 os.remove(os.path.join(output_dir, file))
         logger.info("Cleaned up test output files")
     except Exception as e:
