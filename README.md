@@ -1,9 +1,9 @@
-# gcp-rag-exp
+# gcp-ocr-exp
 
 ## Directory Structure
 
 ```
-gcp-rag-exp/
+gcp-ocr-exp/
 ├── src/
 │   ├── processors/
 │   │   ├── __init__.py

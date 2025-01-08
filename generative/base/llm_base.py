@@ -1,4 +1,4 @@
-# src/generative/base/llm_base.py
+# gcp-ocr-exp/src/generative/base/llm_base.py
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
 

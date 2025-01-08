@@ -1,4 +1,4 @@
-# test_gemini.py
+# gcp-ocr-exp/test_gemini.py
 import os
 import json
 import logging

@@ -1,4 +1,4 @@
-# src/generative/gcp/gemini.py
+# gcp-ocr-exp/src/generative/gcp/gemini.py
 import google.generativeai as genai
 import logging
 from typing import Dict, Any, Optional, List
