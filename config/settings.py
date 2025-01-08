@@ -56,7 +56,7 @@ GCP_CONFIG: Dict[str, Any] = {
 # GEMINI_CONFIG
 GEMINI_CONFIG: Dict[str, Any] = {
     'model': 'gemini-pro',
-    'temperature': float(os.getenv('GEMINI_TEMPERATURE', '0.3')),
+    'temperature': float(os.getenv('GEMINI_TEMPERATURE', '0.2')),
     'max_output_tokens': int(os.getenv('GEMINI_MAX_OUTPUT_TOKENS', '2048')),
     'top_p': float(os.getenv('GEMINI_TOP_P', '0.8')),
     'top_k': int(os.getenv('GEMINI_TOP_K', '40')),
@@ -84,7 +84,7 @@ VISION_CONFIG: Dict[str, Any] = {
 
 # Vision API Output Configuration
 VISION_OUTPUT_CONFIG: Dict[str, Any] = {
-    'output_mode': os.getenv('VISION_OUTPUT_MODE', 'simple'),  # 'simple' or 'detailed'
+    'output_mode': os.getenv('VISION_OUTPUT_MODE', 'detailed'),  # 'simple' or 'detailed'
     'include_confidence': os.getenv('VISION_INCLUDE_CONFIDENCE', 'true').lower() == 'true',
     'include_bounding_boxes': os.getenv('VISION_INCLUDE_BOUNDING_BOXES', 'true').lower() == 'true',
     'min_confidence_threshold': float(os.getenv('VISION_MIN_CONFIDENCE', '0.0')),
