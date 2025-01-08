@@ -191,9 +191,18 @@ class VisionProcessor:
         return response_dict
 
     def _process_detailed_output(self, response) -> Dict[str, Any]:
-        """Process response in detailed mode"""
+        """
+        Process response in detailed mode with enhanced bounding box information
+
+        Args:
+            response: Vision API response object
+
+        Returns:
+            Dict containing processed response data
+        """
         response_dict = {
-            'responses': []
+            'responses': [],
+            'total_pages': getattr(response.responses[0], 'total_pages', len(response.responses))
         }
 
         try:
@@ -231,36 +240,13 @@ class VisionProcessor:
                             for lang in page.property.detected_languages
                         ]
 
-                    # Process blocks
+                    # Process blocks with enhanced bounding box information
                     for block in page.blocks:
                         if (block.confidence <
                             self.output_config['min_confidence_threshold']):
                             continue
 
-                        block_data = {
-                            'text': '',
-                            'confidence': block.confidence if self.output_config['include_confidence'] else None
-                        }
-
-                        # Add bounding box if configured
-                        if self.output_config['include_bounding_boxes']:
-                            vertices = block.bounding_box.vertices
-                            block_data['bounding_box'] = {
-                                'vertices': [
-                                    {'x': vertex.x, 'y': vertex.y}
-                                    for vertex in vertices
-                                ]
-                            }
-
-                        # Extract text and build block content
-                        for paragraph in block.paragraphs:
-                            for word in paragraph.words:
-                                word_text = ''.join(
-                                    symbol.text for symbol in word.symbols
-                                )
-                                block_data['text'] += word_text + ' '
-
-                        block_data['text'] = block_data['text'].strip()
+                        block_data = self._process_block(block)
                         page_data['blocks'].append(block_data)
 
                     file_data['pages'].append(page_data)
@@ -272,3 +258,120 @@ class VisionProcessor:
             raise
 
         return response_dict
+
+    def _process_block(self, block) -> Dict[str, Any]:
+        """
+        Process a single block with enhanced bounding box information
+
+        Args:
+            block: Vision API block object
+
+        Returns:
+            Dict containing processed block data
+        """
+        block_data = {
+            'text': '',
+            'confidence': block.confidence if self.output_config['include_confidence'] else None,
+            'block_type': str(block.block_type) if hasattr(block, 'block_type') else 'UNKNOWN',
+        }
+
+        # Add normalized bounding box coordinates
+        if self.output_config['include_bounding_boxes'] and hasattr(block, 'bounding_box'):
+            block_data['bounding_box'] = {
+                'normalized_vertices': [
+                    {
+                        'x': vertex.x,
+                        'y': vertex.y
+                    }
+                    for vertex in block.bounding_box.normalized_vertices
+                ]
+            }
+
+        # Process paragraphs
+        if hasattr(block, 'paragraphs'):
+            block_data['paragraphs'] = []
+            for paragraph in block.paragraphs:
+                para_data = self._process_paragraph(paragraph)
+                block_data['paragraphs'].append(para_data)
+
+                # Append paragraph text to block text
+                block_data['text'] += para_data['text'] + '\n'
+
+        block_data['text'] = block_data['text'].strip()
+        return block_data
+
+    def _process_paragraph(self, paragraph) -> Dict[str, Any]:
+        """
+        Process a single paragraph with detailed information
+
+        Args:
+            paragraph: Vision API paragraph object
+
+        Returns:
+            Dict containing processed paragraph data
+        """
+        para_data = {
+            'text': '',
+            'confidence': paragraph.confidence if self.output_config['include_confidence'] else None,
+        }
+
+        # Add normalized bounding box coordinates for paragraph
+        if self.output_config['include_bounding_boxes'] and hasattr(paragraph, 'bounding_box'):
+            para_data['bounding_box'] = {
+                'normalized_vertices': [
+                    {
+                        'x': vertex.x,
+                        'y': vertex.y
+                    }
+                    for vertex in paragraph.bounding_box.normalized_vertices
+                ]
+            }
+
+        # Process words
+        if hasattr(paragraph, 'words'):
+            para_data['words'] = []
+            for word in paragraph.words:
+                word_data = self._process_word(word)
+                para_data['words'].append(word_data)
+                para_data['text'] += word_data['text'] + ' '
+
+        para_data['text'] = para_data['text'].strip()
+        return para_data
+
+    def _process_word(self, word) -> Dict[str, Any]:
+        """
+        Process a single word with detailed information
+
+        Args:
+            word: Vision API word object
+
+        Returns:
+            Dict containing processed word data
+        """
+        word_data = {
+            'text': '',
+            'confidence': word.confidence if self.output_config['include_confidence'] else None,
+        }
+
+        # Add normalized bounding box coordinates for word
+        if self.output_config['include_bounding_boxes'] and hasattr(word, 'bounding_box'):
+            word_data['bounding_box'] = {
+                'normalized_vertices': [
+                    {
+                        'x': vertex.x,
+                        'y': vertex.y
+                    }
+                    for vertex in word.bounding_box.normalized_vertices
+                ]
+            }
+
+        # Process symbols
+        if hasattr(word, 'symbols'):
+            word_text = ''
+            for symbol in word.symbols:
+                symbol_text = symbol.text
+                word_text += symbol_text
+
+            word_data['text'] = word_text
+
+        return word_data
