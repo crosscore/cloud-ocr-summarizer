@@ -5,18 +5,13 @@ import logging
 from typing import Dict, Any
 from datetime import datetime
 from google.cloud import vision
-from google.protobuf.json_format import MessageToDict
 from config.settings import (
-    VISION_CONFIG, FILE_CONFIG, LOGGING_CONFIG,
+    VISION_CONFIG, FILE_CONFIG,
     VISION_CONSTANTS, VISION_OUTPUT_CONFIG
 )
 from src.utils.gcp_utils import GCPClient
+from src.utils.token_counter import TokenCounter
 
-logging.basicConfig(
-    level=getattr(logging, LOGGING_CONFIG['level']),
-    format=LOGGING_CONFIG['format'],
-    filename=LOGGING_CONFIG['file_path']
-)
 logger = logging.getLogger(__name__)
 
 class VisionProcessor:
@@ -86,7 +81,6 @@ class VisionProcessor:
             # Perform OCR
             logger.info("Performing OCR...")
             response = self.vision_client.batch_annotate_files(request)
-            print(response)
 
             # Save results
             logger.info("Saving OCR results...")
@@ -113,7 +107,7 @@ class VisionProcessor:
 
     def _save_results(self, response, input_file: str) -> str:
         """
-        Saves OCR results including raw response
+        Saves OCR results and logs token statistics without modifying the output JSON structure
         """
         try:
             timestamp = datetime.now().strftime(FILE_CONFIG['timestamp_format'])
@@ -122,24 +116,27 @@ class VisionProcessor:
 
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-            # 通常の処理用の出力の保存
+            # Process and save results
             result_dict = {
                 'simple': self._process_simple_output,
                 'detailed': self._process_detailed_output,
             }.get(self.output_config['output_mode'], self._process_simple_output)(response)
 
+            # Save JSON result
             with open(output_path, 'w', encoding='utf-8') as f:
                 json.dump(result_dict, f, ensure_ascii=False, indent=2)
 
-            # Raw responseの保存
+            # Save raw response if configured
             if self.output_config.get('save_raw_response', True):
                 raw_output_path = output_path.replace('.json', '_raw.txt')
-
-                # Protobufレスポンスを文字列として保存
                 with open(raw_output_path, 'w', encoding='utf-8') as f:
                     f.write(str(response))
-
                 logger.info(f"Raw response saved to: {raw_output_path}")
+
+            # Log token statistics
+            token_stats = TokenCounter.count_json_file(output_path)
+            logger.info(f"Document processing completed. Total tokens: {token_stats['total_tokens']}, "
+                    f"Pages: {token_stats['structure_stats']['pages']}")
 
             return output_path
 
