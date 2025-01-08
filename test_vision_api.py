@@ -27,75 +27,55 @@ def load_ocr_result(file_path: str):
 def display_results(result_data, result_path):
     """
     Display the OCR results in a readable format and log token statistics
-
-    Args:
-        result_data: Processed data from Vision API
-        result_path: Path to the result JSON file
     """
     logger.info("=== OCR Processing Results ===")
 
     # Display response structure metadata
     total_responses = len(result_data.get('responses', []))
-    logger.info("\nResponse Structure:")
+    logger.info("\nDocument Overview:")
     logger.info(f"Total Responses: {total_responses}")
 
     total_pages = 0
     detected_languages = set()
-    total_confidence = 0
-    page_count = 0
+    page_confidences = []
 
     # Process each response and collect metadata
     for response in result_data.get('responses', []):
         for page in response.get('pages', []):
-            page_count += 1
             total_pages += 1
             if 'detected_languages' in page:
                 for lang in page['detected_languages']:
                     detected_languages.add(lang['language_code'])
             if 'confidence' in page:
-                total_confidence += page['confidence']
+                page_confidences.append(page['confidence'])
 
-    # Calculate and display overall metadata
-    logger.info("\nDocument Metadata:")
-    logger.info(f"Total Pages Processed: {total_pages}")
+    # Display document metadata
+    logger.info(f"Total Pages: {total_pages}")
     if detected_languages:
         logger.info(f"Detected Languages: {', '.join(sorted(detected_languages))}")
-    if page_count > 0:
-        avg_confidence = total_confidence / page_count
-        logger.info(f"Average Document Confidence: {avg_confidence:.2f}")
+    if page_confidences:
+        avg_confidence = sum(page_confidences) / len(page_confidences)
+        logger.info(f"Average Confidence: {avg_confidence:.2f}")
 
     # Calculate and log token statistics
     token_stats = TokenCounter.count_json_file(result_path)
-    logger.info("\nToken Statistics:")
+    logger.info("\nStructure Analysis:")
     logger.info(f"Total tokens: {token_stats['total_tokens']}")
-
     structure_stats = token_stats['structure_stats']
-    logger.info(f"Pages: {structure_stats['pages']}")
     logger.info(f"Blocks: {structure_stats['blocks']}")
     logger.info(f"Paragraphs: {structure_stats['paragraphs']}")
     logger.info(f"Words: {structure_stats['words']}")
-    if 'average_confidence' in structure_stats:
-        logger.info(f"Structure Average Confidence: {structure_stats['average_confidence']:.2f}")
 
-    # Display detailed page information
-    logger.info("\nDetailed Page Information:")
+    # Display page contents
+    logger.info("\nPage Contents:")
     for response in result_data.get('responses', []):
         for page in response.get('pages', []):
             page_number = page.get('page_number', 'Unknown')
             logger.info(f"\nPage {page_number}:")
-            if 'confidence' in page:
-                logger.info(f"Confidence: {page['confidence']:.2f}")
 
-            # Process blocks
             blocks = page.get('blocks', [])
-            if blocks:
-                logger.info(f"Number of blocks: {len(blocks)}")
-                # Display first 3 blocks as sample
-                for i, block in enumerate(blocks[:3], 1):
-                    logger.info(f"  Block {i}:")
-                    logger.info(f"  Text: {block.get('text', '')}")
-                    if 'confidence' in block:
-                        logger.info(f"  Confidence: {block['confidence']:.2f}")
+            for i, block in enumerate(blocks[:3], 1):
+                logger.info(f"  Block {i}: {block.get('text', '')}")
 
 def main():
     # Initialize processor
