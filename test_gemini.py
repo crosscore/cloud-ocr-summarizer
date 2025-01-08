@@ -1,4 +1,4 @@
-# src/test_gemini.py
+# test_gemini.py
 import os
 import json
 import logging

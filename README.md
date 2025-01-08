@@ -39,7 +39,8 @@ gcp-rag-exp/
 │       └── audit_log.jsonl        # 監査ログ
 ├── logs/
 │   └── app.log                    # アプリケーションログ
-├── vision_api_test.py             # Vision APIテスト実行ファイル
+├── test_vision_api.py             # Vision APIテスト実行ファイル
+├── test_gemini.py                 # Vertex AI APIテスト実行ファイル
 ├── requirements.txt
 ├── .env                           # 環境変数設定ファイル
 ├── .gitignore
