@@ -52,7 +52,6 @@ FILE_CONFIG: Dict[str, Any] = {
     'max_file_size': 10 * 1024 * 1024,  # 10MB (GCP Vision APIの制限に合わせて調整)
     'input_directory': os.path.join(PROJECT_ROOT, 'data', 'input'),
     'output_directory': os.path.join(PROJECT_ROOT, 'data', 'output'),
-    'temp_directory': os.path.join(PROJECT_ROOT, 'data', 'temp')  # 一時ファイル用
 }
 
 # Logging Configuration
