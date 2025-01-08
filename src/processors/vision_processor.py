@@ -2,7 +2,7 @@
 import os
 import json
 import logging
-from typing import List, Dict, Any
+from typing import Dict, Any
 from datetime import datetime
 from google.cloud import vision
 from google.protobuf.json_format import MessageToDict
@@ -61,7 +61,6 @@ class VisionProcessor:
 
             # Prepare OCR request
             logger.info("Preparing OCR request...")
-
             input_config = vision.InputConfig(
                 mime_type=self._get_mime_type(file_path),
                 gcs_source=vision.GcsSource(uri=gcs_uri)
@@ -87,10 +86,7 @@ class VisionProcessor:
             # Perform OCR
             logger.info("Performing OCR...")
             response = self.vision_client.batch_annotate_files(request)
-
-            # Save raw response if configured
-            if self.output_config['save_raw_response']:
-                logger.debug(f"Raw response type: {type(response)}")
+            print(response)
 
             # Save results
             logger.info("Saving OCR results...")
@@ -115,43 +111,82 @@ class VisionProcessor:
             'application/octet-stream'
         )
 
+    def _save_results(self, response, input_file: str) -> str:
+        """
+        Saves OCR results including raw response
+        """
+        try:
+            timestamp = datetime.now().strftime(FILE_CONFIG['timestamp_format'])
+            output_filename = FILE_CONFIG['vision_output_filename_pattern'].format(timestamp=timestamp)
+            output_path = os.path.join(FILE_CONFIG['vision_output_directory'], output_filename)
+
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+            # 通常の処理用の出力の保存
+            result_dict = {
+                'simple': self._process_simple_output,
+                'detailed': self._process_detailed_output,
+            }.get(self.output_config['output_mode'], self._process_simple_output)(response)
+
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(result_dict, f, ensure_ascii=False, indent=2)
+
+            # Raw responseの保存
+            if self.output_config.get('save_raw_response', True):
+                raw_output_path = output_path.replace('.json', '_raw.txt')
+
+                # Protobufレスポンスを文字列として保存
+                with open(raw_output_path, 'w', encoding='utf-8') as f:
+                    f.write(str(response))
+
+                logger.info(f"Raw response saved to: {raw_output_path}")
+
+            return output_path
+
+        except Exception as e:
+            logger.error(f"Failed to save OCR results: {str(e)}")
+            return ""
+
     def _process_simple_output(self, response) -> Dict[str, Any]:
         """Process response in simple mode"""
         response_dict = {
-            'files': []
+            'responses': []
         }
 
-        for file_response in response.responses:
-            file_data = {
-                'total_pages': file_response.total_pages,
-                'pages': []
-            }
+        try:
+            for file_response in response.responses:
+                file_data = {
+                    'pages': []
+                }
 
-            if hasattr(file_response, 'responses') and file_response.responses:
                 for page_response in file_response.responses:
-                    if not hasattr(page_response, 'full_text_annotation'):
-                        continue
+                    if hasattr(page_response, 'full_text_annotation'):
+                        text_annotation = page_response.full_text_annotation
+                        page_data = {
+                            'page_number': len(file_data['pages']) + 1,
+                            'text': text_annotation.text if text_annotation else '',
+                            'confidence': text_annotation.pages[0].confidence if text_annotation and text_annotation.pages else 0.0
+                        }
 
-                    text_annotation = page_response.full_text_annotation
-                    page_data = {
-                        'page_number': len(file_data['pages']) + 1,
-                        'text': text_annotation.text
-                    }
+                        # Add language detection if available
+                        if (text_annotation and
+                            text_annotation.pages and
+                            hasattr(text_annotation.pages[0], 'property') and
+                            hasattr(text_annotation.pages[0].property, 'detected_languages')):
+                            page_data['detected_languages'] = [
+                                {
+                                    'language_code': lang.language_code,
+                                    'confidence': lang.confidence
+                                }
+                                for lang in text_annotation.pages[0].property.detected_languages
+                            ]
 
-                    # Add language detection if available
-                    if (hasattr(text_annotation.pages[0], 'property') and
-                        hasattr(text_annotation.pages[0].property, 'detected_languages')):
-                        page_data['detected_languages'] = [
-                            {
-                                'language_code': lang.language_code,
-                                'confidence': lang.confidence
-                            }
-                            for lang in text_annotation.pages[0].property.detected_languages
-                        ]
+                        file_data['pages'].append(page_data)
 
-                    file_data['pages'].append(page_data)
+                response_dict['responses'].append(file_data)
 
-            response_dict['files'].append(file_data)
+        except Exception as e:
+            logger.error(f"Error in simple output processing: {str(e)}")
 
         return response_dict
 
@@ -237,203 +272,3 @@ class VisionProcessor:
             raise
 
         return response_dict
-
-    def _save_results(self, response, input_file: str) -> str:
-        """
-        Saves OCR results to a JSON file based on configuration
-        """
-        try:
-            timestamp = datetime.now().strftime(FILE_CONFIG['timestamp_format'])
-            output_filename = FILE_CONFIG['vision_output_filename_pattern'].format(timestamp=timestamp)
-            output_path = os.path.join(FILE_CONFIG['vision_output_directory'], output_filename)
-
-            os.makedirs(os.path.dirname(output_path), exist_ok=True)
-
-            # Process response according to selected mode
-            try:
-                result_dict = {
-                    'simple': self._process_simple_output,
-                    'detailed': self._process_detailed_output,
-                }.get(self.output_config['output_mode'], self._process_simple_output)(response)
-            except Exception as e:
-                logger.error(f"Error processing response: {str(e)}")
-                raise
-
-            # Save processed results
-            with open(output_path, 'w', encoding='utf-8') as f:
-                json.dump(result_dict, f, ensure_ascii=False, indent=2)
-
-            # Save raw response if configured
-            if self.output_config['save_raw_response']:
-                raw_output_path = output_path.replace('.json', '_raw.json')
-                raw_dict = {
-                    'responses': []
-                }
-
-                try:
-                    for file_resp in response.responses:
-                        file_data = {
-                            'responses': []
-                        }
-
-                        for page_resp in file_resp.responses:
-                            if hasattr(page_resp, 'full_text_annotation'):
-                                annotation = page_resp.full_text_annotation
-                                page_data = {
-                                    'full_text_annotation': {
-                                        'text': annotation.text,
-                                        'pages': []
-                                    }
-                                }
-
-                                for page in annotation.pages:
-                                    page_info = {
-                                        'width': page.width,
-                                        'height': page.height,
-                                        'confidence': page.confidence
-                                    }
-                                    page_data['full_text_annotation']['pages'].append(page_info)
-
-                                file_data['responses'].append(page_data)
-
-                        raw_dict['responses'].append(file_data)
-
-                    with open(raw_output_path, 'w', encoding='utf-8') as f:
-                        json.dump(raw_dict, f, ensure_ascii=False, indent=2)
-                    logger.info(f"Raw response saved to: {raw_output_path}")
-
-                except Exception as e:
-                    logger.error(f"Error saving raw response: {str(e)}")
-                    # Continue execution even if raw response saving fails
-
-            logger.info(f"OCR results saved to: {output_path}")
-            return output_path
-
-        except Exception as e:
-            logger.error(f"Failed to save OCR results: {str(e)}")
-            return ""
-
-    def _process_full_output(self, response) -> Dict[str, Any]:
-        """Process response in full mode - preserve complete API response structure"""
-        try:
-            full_dict = MessageToDict(response, preserving_proto_field_name=True)
-
-            if isinstance(full_dict, dict) and 'responses' in full_dict:
-                return full_dict
-            return {'responses': [full_dict]}
-
-        except Exception as e:
-            logger.error(f"Error in full output processing: {str(e)}")
-            return {'error': str(e)}
-
-    # Utility methods for custom output processing
-    def _extract_languages(self, response) -> List[Dict[str, Any]]:
-        """Extract language information from response"""
-        languages = []
-        try:
-            if (hasattr(response, 'full_text_annotation') and
-                hasattr(response.full_text_annotation.pages[0], 'property')):
-                for lang in response.full_text_annotation.pages[0].property.detected_languages:
-                    languages.append({
-                        'language_code': lang.language_code,
-                        'confidence': lang.confidence
-                    })
-        except Exception as e:
-            logger.debug(f"Error extracting languages: {str(e)}")
-        return languages
-
-    def _extract_confidence(self, response) -> float:
-        """Extract confidence score from response"""
-        try:
-            if hasattr(response, 'full_text_annotation'):
-                return response.full_text_annotation.pages[0].confidence
-        except Exception as e:
-            logger.debug(f"Error extracting confidence: {str(e)}")
-        return 0.0
-
-    def _extract_blocks(self, response) -> List[Dict[str, Any]]:
-        """Extract block information from response"""
-        blocks = []
-        try:
-            if hasattr(response, 'full_text_annotation'):
-                for block in response.full_text_annotation.pages[0].blocks:
-                    block_data = {
-                        'confidence': block.confidence,
-                        'bounding_box': {
-                            'vertices': [
-                                {'x': vertex.x, 'y': vertex.y}
-                                for vertex in block.bounding_box.normalized_vertices
-                            ]
-                        },
-                        'text': ''
-                    }
-
-                    # Extract text from block
-                    for paragraph in block.paragraphs:
-                        for word in paragraph.words:
-                            word_text = ''.join(symbol.text for symbol in word.symbols)
-                            block_data['text'] += word_text + ' '
-
-                    block_data['text'] = block_data['text'].strip()
-                    blocks.append(block_data)
-        except Exception as e:
-            logger.debug(f"Error extracting blocks: {str(e)}")
-        return blocks
-
-    def _extract_words(self, response) -> List[Dict[str, Any]]:
-        """Extract word-level information from response"""
-        words = []
-        try:
-            if hasattr(response, 'full_text_annotation'):
-                for block in response.full_text_annotation.pages[0].blocks:
-                    for paragraph in block.paragraphs:
-                        for word in paragraph.words:
-                            word_data = {
-                                'text': ''.join(symbol.text for symbol in word.symbols),
-                                'confidence': word.confidence,
-                                'bounding_box': {
-                                    'vertices': [
-                                        {'x': vertex.x, 'y': vertex.y}
-                                        for vertex in word.bounding_box.normalized_vertices
-                                    ]
-                                }
-                            }
-                            words.append(word_data)
-        except Exception as e:
-            logger.debug(f"Error extracting words: {str(e)}")
-        return words
-
-    def _add_page_dimensions(self, page_data: Dict[str, Any],
-                            text_annotation: Any,
-                            desired_fields: set) -> None:
-        """Add page dimension information to page data"""
-        try:
-            if 'width' in desired_fields:
-                page_data['width'] = text_annotation.pages[0].width
-            if 'height' in desired_fields:
-                page_data['height'] = text_annotation.pages[0].height
-        except Exception as e:
-            logger.debug(f"Error adding page dimensions: {str(e)}")
-
-    def _extract_breaks(self, response) -> List[Dict[str, Any]]:
-        """Extract break information from response"""
-        breaks = []
-        try:
-            if hasattr(response, 'full_text_annotation'):
-                for block in response.full_text_annotation.pages[0].blocks:
-                    for paragraph in block.paragraphs:
-                        for word in paragraph.words:
-                            for symbol in word.symbols:
-                                if (hasattr(symbol, 'property') and
-                                    hasattr(symbol.property, 'detected_break')):
-                                    breaks.append({
-                                        'text': symbol.text,
-                                        'break_type': symbol.property.detected_break.type_,
-                                        'position': {
-                                            'x': symbol.bounding_box.normalized_vertices[0].x,
-                                            'y': symbol.bounding_box.normalized_vertices[0].y
-                                        }
-                                    })
-        except Exception as e:
-            logger.debug(f"Error extracting breaks: {str(e)}")
-        return breaks
