@@ -107,28 +107,36 @@ class GCPClient:
             logger.error(error_msg)
             return False, error_msg
 
-    def delete_from_storage(self, blob_name: str) -> bool:
+    def delete_from_storage(self, gcs_uri: str) -> bool:
         """
         Delete a file from Google Cloud Storage
 
         Args:
-            blob_name: Name of the blob to delete
+            gcs_uri: Full GCS URI (e.g., 'gs://bucket-name/path/to/file')
 
         Returns:
             bool: Success status
         """
         try:
-            bucket = self.storage_client.bucket(GCP_CONFIG['storage_bucket'])
+            # Extract blob path from GCS URI
+            if gcs_uri.startswith('gs://'):
+                # Remove 'gs://' and split into bucket and blob path
+                parts = gcs_uri[5:].split('/', 1)
+                if len(parts) != 2:
+                    raise ValueError(f"Invalid GCS URI format: {gcs_uri}")
+                bucket_name, blob_name = parts
+            else:
+                raise ValueError(f"Invalid GCS URI format: {gcs_uri}")
+
+            bucket = self.storage_client.bucket(bucket_name)
             blob = bucket.blob(blob_name)
             blob.delete()
 
-            logger.info(
-                f"Successfully deleted gs://{GCP_CONFIG['storage_bucket']}/{blob_name}"
-            )
+            logger.info(f"Successfully deleted {gcs_uri}")
             return True
 
         except Exception as e:
-            logger.error(f"Failed to delete blob {blob_name}: {str(e)}")
+            logger.error(f"Failed to delete blob {gcs_uri}: {str(e)}")
             return False
 
     def list_files_in_bucket(

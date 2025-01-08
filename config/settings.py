@@ -79,7 +79,17 @@ VISION_CONFIG: Dict[str, Any] = {
     'confidence_threshold': float(os.getenv('VISION_CONFIDENCE_THRESHOLD', '0.7')),
     'supported_languages': ['ja', 'en'],
     'batch_size': int(os.getenv('VISION_BATCH_SIZE', '10')),
-    'default_language_hints': VISION_CONSTANTS['default_language_hints']  # これは問題なく参照できるようになります
+    'default_language_hints': VISION_CONSTANTS['default_language_hints']
+}
+
+# Vision API Output Configuration
+VISION_OUTPUT_CONFIG: Dict[str, Any] = {
+    'output_mode': os.getenv('VISION_OUTPUT_MODE', 'simple'),  # 'simple' or 'detailed'
+    'include_confidence': os.getenv('VISION_INCLUDE_CONFIDENCE', 'true').lower() == 'true',
+    'include_bounding_boxes': os.getenv('VISION_INCLUDE_BOUNDING_BOXES', 'false').lower() == 'true',
+    'min_confidence_threshold': float(os.getenv('VISION_MIN_CONFIDENCE', '0.0')),
+    # for DEBUG
+    'save_raw_response': os.getenv('VISION_SAVE_RAW_RESPONSE', 'true').lower() == 'true',
 }
 
 # File Processing Configuration

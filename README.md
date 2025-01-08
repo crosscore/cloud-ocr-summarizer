@@ -16,7 +16,7 @@ gcp-ocr-exp/
 │   ├── generative/                   # 生成AI関連
 │   │   ├── base/
 │   │   │   ├── __init__.py
-│   │   │   └── llm_base.py           # 基底クラス（共通インターフェース）
+│   │   │   └── llm_base.py           # 基底クラス（共通）
 │   │   ├── gcp/
 │   │   │   ├── __init__.py
 │   │   │   ├── gemini.py             # Gemini実装クラス
