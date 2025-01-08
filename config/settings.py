@@ -103,7 +103,7 @@ VISION_CONSTANTS = {
 # Sample .env file template
 ENV_TEMPLATE = '''
 GCP_PROJECT_ID=your-project-id
-GCP_CREDENTIALS_FILE=gcp-service-account.json
+GCP_CREDENTIALS_FILE=service-account-file-path.json
 GCP_STORAGE_BUCKET=your-bucket-name
 GCP_BUCKET_PREFIX=medical_documents/
 GCP_REGION=asia-northeast1
