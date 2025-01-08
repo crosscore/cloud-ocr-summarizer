@@ -18,20 +18,19 @@ class GeminiProcessor(LLMBase):
     def __init__(self):
         """Initialize Gemini model with configurations"""
         try:
-            # Configure Gemini
-            genai.configure(
-                api_key=GCP_CONFIG['api_key'],
-                project=GCP_CONFIG['project_id']
-            )
+            # Configure Gemini with API key only
+            genai.configure(api_key=GCP_CONFIG['api_key'])
 
-            # Initialize model
-            self.model = genai.GenerativeModel(GEMINI_CONFIG['model'])
-            self.generation_config = {
-                'temperature': GEMINI_CONFIG['temperature'],
-                'top_p': GEMINI_CONFIG['top_p'],
-                'top_k': GEMINI_CONFIG['top_k'],
-                'max_output_tokens': GEMINI_CONFIG['max_output_tokens'],
-            }
+            # Initialize model with generation config
+            self.model = genai.GenerativeModel(
+                model_name=GEMINI_CONFIG['model'],
+                generation_config=genai.types.GenerationConfig(
+                    temperature=GEMINI_CONFIG['temperature'],
+                    top_p=GEMINI_CONFIG['top_p'],
+                    top_k=GEMINI_CONFIG['top_k'],
+                    max_output_tokens=GEMINI_CONFIG['max_output_tokens'],
+                )
+            )
             logger.info("Successfully initialized Gemini model")
 
         except Exception as e:
@@ -56,9 +55,11 @@ class GeminiProcessor(LLMBase):
             summaries = []
             # Process each page
             for page in ocr_data['pages']:
-                if page.get('texts'):
+                # Extract text from blocks
+                page_text = ' '.join([block['text'] for block in page['blocks']])
+                if page_text:
                     page_summary = self._generate_page_summary(
-                        page['texts'],
+                        page_text,
                         page['page_number'],
                         language_settings
                     )
@@ -108,11 +109,10 @@ class GeminiProcessor(LLMBase):
         """Generate summary for a single page"""
         try:
             prompt = language_settings['prompt_template'].format(text=text)
-            response = self.model.generate_content(
-                prompt,
-                generation_config=self.generation_config
-            )
-            return response.text if response else None
+            response = self.model.generate_content(prompt)
+            if response and response.text:
+                return response.text.strip()
+            return None
 
         except Exception as e:
             logger.error(f"Error generating summary for page {page_number}: {str(e)}")
@@ -126,11 +126,10 @@ class GeminiProcessor(LLMBase):
         """Generate overall summary from page summaries"""
         try:
             prompt = language_settings['prompt_template'].format(text=combined_summaries)
-            response = self.model.generate_content(
-                prompt,
-                generation_config=self.generation_config
-            )
-            return response.text if response else None
+            response = self.model.generate_content(prompt)
+            if response and response.text:
+                return response.text.strip()
+            return None
 
         except Exception as e:
             logger.error(f"Error generating overall summary: {str(e)}")
