@@ -34,7 +34,27 @@ GCP_CONFIG: Dict[str, Any] = {
     ),
     'storage_bucket': os.getenv('GCP_STORAGE_BUCKET', ''),
     'bucket_prefix': os.getenv('GCP_BUCKET_PREFIX', 'medical_documents/'),
-    'region': os.getenv('GCP_REGION', 'asia-northeast1')
+    'region': os.getenv('GCP_REGION', 'asia-northeast1'),
+    'api_key': os.getenv('GEMINI_API_KEY', '')
+}
+
+# GEMINI_CONFIG
+GEMINI_CONFIG: Dict[str, Any] = {
+    'model': 'gemini-pro',
+    'temperature': float(os.getenv('GEMINI_TEMPERATURE', '0.3')),
+    'max_output_tokens': int(os.getenv('GEMINI_MAX_OUTPUT_TOKENS', '2048')),
+    'top_p': float(os.getenv('GEMINI_TOP_P', '0.8')),
+    'top_k': int(os.getenv('GEMINI_TOP_K', '40')),
+    'language_settings': {
+        'ja': {
+            'prompt_template': '以下の文書を要約してください：\n{text}\n\n要約：',
+            'max_tokens_per_chunk': 1000
+        },
+        'en': {
+            'prompt_template': 'Please summarize the following document:\n{text}\n\nSummary:',
+            'max_tokens_per_chunk': 1000
+        }
+    }
 }
 
 # Vision API Configuration
@@ -68,6 +88,18 @@ SECURITY_CONFIG: Dict[str, Any] = {
     'delete_after_processing': os.getenv('DELETE_AFTER_PROCESSING', 'true').lower() == 'true'
 }
 
+# Constants for Vision API
+VISION_CONSTANTS = {
+    'supported_mime_types': {
+        '.pdf': 'application/pdf',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg'
+    },
+    'max_pages_per_request': 5,  # Vision APIの1リクエストあたりの最大ページ数
+    'default_language_hints': ['ja', 'en']
+}
+
 # Sample .env file template
 ENV_TEMPLATE = '''
 GCP_PROJECT_ID=your-project-id
@@ -85,16 +117,11 @@ LOG_LEVEL=INFO
 ENABLE_AUDIT_LOGS=true
 DATA_RETENTION_DAYS=30
 DELETE_AFTER_PROCESSING=true
-'''
 
-# Constants for Vision API
-VISION_CONSTANTS = {
-    'supported_mime_types': {
-        '.pdf': 'application/pdf',
-        '.png': 'image/png',
-        '.jpg': 'image/jpeg',
-        '.jpeg': 'image/jpeg'
-    },
-    'max_pages_per_request': 5,  # Vision APIの1リクエストあたりの最大ページ数
-    'default_language_hints': ['ja', 'en']
-}
+# Gemini API settings
+GEMINI_API_KEY=your-api-key
+GEMINI_TEMPERATURE=0.3
+GEMINI_MAX_OUTPUT_TOKENS=2048
+GEMINI_TOP_P=0.8
+GEMINI_TOP_K=40
+'''
