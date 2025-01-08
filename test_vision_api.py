@@ -3,9 +3,7 @@ from src.processors.vision_processor import VisionProcessor
 import logging
 from config.settings import LOGGING_CONFIG
 import os
-import json
 
-# Configure logging
 logging.basicConfig(
     level=getattr(logging, LOGGING_CONFIG['level']),
     format=LOGGING_CONFIG['format']

@@ -2,6 +2,7 @@
 from typing import Dict, Any
 import os
 from dotenv import load_dotenv
+import datetime # 追加
 
 # Load environment variables from .env file
 load_dotenv()
@@ -15,6 +16,8 @@ def ensure_directories_exist():
     directories = [
         os.path.join(PROJECT_ROOT, 'data', 'input'),
         os.path.join(PROJECT_ROOT, 'data', 'output'),
+        os.path.join(PROJECT_ROOT, 'data', 'output', 'vision'),
+        os.path.join(PROJECT_ROOT, 'data', 'output', 'gemini'),
         os.path.join(PROJECT_ROOT, 'logs'),
     ]
 
@@ -69,9 +72,14 @@ VISION_CONFIG: Dict[str, Any] = {
 # File Processing Configuration
 FILE_CONFIG: Dict[str, Any] = {
     'allowed_extensions': ['.pdf', '.png', '.jpg', '.jpeg'],
-    'max_file_size': 10 * 1024 * 1024,  # 10MB (GCP Vision APIの制限に合わせて調整)
+    'max_file_size': 10 * 1024 * 1024,  # 10MB
     'input_directory': os.path.join(PROJECT_ROOT, 'data', 'input'),
     'output_directory': os.path.join(PROJECT_ROOT, 'data', 'output'),
+    'vision_output_directory': os.path.join(PROJECT_ROOT, 'data', 'output', 'vision'),
+    'gemini_output_directory': os.path.join(PROJECT_ROOT, 'data', 'output', 'gemini'),
+    'vision_output_filename_pattern': 'vision_results_{timestamp}.json',
+    'gemini_output_filename_pattern': 'gemini_summary_{timestamp}.json',
+    'timestamp_format': '%Y%m%d_%H%M%S'
 }
 
 # Logging Configuration

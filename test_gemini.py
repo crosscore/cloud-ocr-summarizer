@@ -4,8 +4,8 @@ import json
 import logging
 from config.settings import FILE_CONFIG, LOGGING_CONFIG
 from generative.gcp.gemini import GeminiProcessor
+import datetime
 
-# Configure logging
 logging.basicConfig(
     level=getattr(logging, LOGGING_CONFIG['level']),
     format=LOGGING_CONFIG['format']
@@ -21,12 +21,12 @@ def load_ocr_result(file_path: str):
         logger.error(f"Error loading OCR result: {str(e)}")
         return None
 
-def save_summary_result(summary_data: dict, original_filename: str):
     """Save summary results to a new JSON file"""
     try:
-        output_dir = FILE_CONFIG['output_directory']
-        base_name = os.path.splitext(os.path.basename(original_filename))[0]
-        output_file = os.path.join(output_dir, f'{base_name}_summary.json')
+        output_dir = FILE_CONFIG['gemini_output_directory']
+        timestamp = datetime.datetime.now().strftime(FILE_CONFIG['timestamp_format'])
+        output_filename = FILE_CONFIG['gemini_output_filename_pattern'].format(timestamp=timestamp)
+        output_file = os.path.join(output_dir, output_filename)
 
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(summary_data, f, ensure_ascii=False, indent=2)
@@ -57,6 +57,24 @@ def display_summary(summary_data: dict):
         logger.info("\nOverall Summary:")
         logger.info(summary_data['overall_summary'])
 
+def save_summary_result(summary_data: dict, original_filename: str):
+    """Save summary results to a new JSON file"""
+    try:
+        output_dir = FILE_CONFIG['gemini_output_directory']
+        timestamp = datetime.datetime.now().strftime(FILE_CONFIG['timestamp_format']) # 変更
+        # base_name = os.path.splitext(os.path.basename(original_filename))[0] # 不要なので削除
+        output_filename = FILE_CONFIG['gemini_output_filename_pattern'].format(timestamp=timestamp) # 変更
+        output_file = os.path.join(output_dir, output_filename)
+
+        with open(output_file, 'w', encoding='utf-8') as f:
+            json.dump(summary_data, f, ensure_ascii=False, indent=2)
+
+        logger.info(f"Summary saved to: {output_file}")
+        return output_file
+    except Exception as e:
+        logger.error(f"Error saving summary: {str(e)}")
+        return None
+
 def main():
     # Initialize processor
     try:
@@ -66,7 +84,7 @@ def main():
         return
 
     # Find the latest OCR result file
-    output_dir = FILE_CONFIG['output_directory']
+    output_dir = FILE_CONFIG['vision_output_directory']
     ocr_files = [f for f in os.listdir(output_dir) if f.startswith('vision_results_')]
 
     if not ocr_files:
