@@ -7,7 +7,11 @@ import json
 
 logging.basicConfig(
     level=getattr(logging, LOGGING_CONFIG['level']),
-    format=LOGGING_CONFIG['format']
+    format=LOGGING_CONFIG['format'],
+    handlers=[
+        logging.FileHandler(LOGGING_CONFIG['file_path']),
+        logging.StreamHandler()  # 標準出力にも表示
+    ]
 )
 logger = logging.getLogger(__name__)
 
@@ -54,68 +58,30 @@ def display_results(result_data):
 
 def main():
     # Initialize processor
-    processor = VisionProcessor()
+    try:
+        processor = VisionProcessor()
+    except Exception as e:
+        logger.error(f"Failed to initialize VisionProcessor: {str(e)}")
+        return
 
     # Process test file
     logger.info("Starting document processing...")
 
-    test_file = "data/input/ocr_test.pdf"  # テスト用PDFファイルのパス
+    test_file = os.path.join(FILE_CONFIG['input_directory'], "ocr_test.pdf")
 
     # Check if test file exists
     if not os.path.exists(test_file):
         logger.error(f"Test file not found: {test_file}")
+        logger.info(f"Please place a test PDF file at: {test_file}")
         return
 
     result_path = processor.process_document(test_file)
 
     if result_path:
         logger.info("Successfully processed document")
-
-        # Load OCR results from the saved JSON file
-        result_data = load_ocr_result(result_path)
-
-        if result_data:
-            # Display results
-            display_results(result_data)
-
-            # Show output file location
-            output_dir = FILE_CONFIG['vision_output_directory']
-            logger.info(f"\nDetailed results have been saved to: {output_dir}")
-
-            # Display list of output files
-            output_files = [f for f in os.listdir(output_dir) if f.startswith('vision_results_')]
-            if output_files:
-                logger.info("Output files:")
-                for file in output_files:
-                    logger.info(f"- {file}")
-        else:
-            logger.error("Failed to load OCR results from the saved file.")
+        logger.info(f"Results saved to: {result_path}")
     else:
         logger.error("Failed to process document")
 
-def cleanup_test_files():
-    """
-    Clean up test output files (optional)
-    """
-    try:
-        output_dir = FILE_CONFIG['output_directory']
-        for file in os.listdir(output_dir):
-            if file.startswith('vision_results_') or file.startswith('gemini_summary_') or file == 'audit_log.jsonl':
-                os.remove(os.path.join(output_dir, file))
-        logger.info("Cleaned up test output files")
-    except Exception as e:
-        logger.error(f"Error during cleanup: {str(e)}")
-
 if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser(description='Test OCR processing with Vision API')
-    parser.add_argument('--cleanup', action='store_true', help='Clean up test output files')
-    parser.add_argument('--input', type=str, help='Input PDF file path (optional)')
-
-    args = parser.parse_args()
-
-    if args.cleanup:
-        cleanup_test_files()
-    else:
-        main()
+    main()

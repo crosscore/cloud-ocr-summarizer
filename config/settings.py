@@ -2,7 +2,7 @@
 from typing import Dict, Any
 import os
 from dotenv import load_dotenv
-import datetime # 追加
+import datetime
 
 # Load environment variables from .env file
 load_dotenv()
@@ -26,6 +26,18 @@ def ensure_directories_exist():
 
 # Create directories
 ensure_directories_exist()
+
+# Constants for Vision API
+VISION_CONSTANTS = {
+    'supported_mime_types': {
+        '.pdf': 'application/pdf',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg'
+    },
+    'max_pages_per_request': 5,  # Vision APIの1リクエストあたりの最大ページ数
+    'default_language_hints': ['ja', 'en']
+}
 
 # GCP Configuration
 GCP_CONFIG: Dict[str, Any] = {
@@ -63,10 +75,11 @@ GEMINI_CONFIG: Dict[str, Any] = {
 # Vision API Configuration
 VISION_CONFIG: Dict[str, Any] = {
     'max_retries': int(os.getenv('VISION_MAX_RETRIES', '3')),
-    'timeout': int(os.getenv('VISION_TIMEOUT', '30')),  # seconds
+    'timeout': int(os.getenv('VISION_TIMEOUT', '30')),
     'confidence_threshold': float(os.getenv('VISION_CONFIDENCE_THRESHOLD', '0.7')),
-    'supported_languages': ['ja', 'en'],  # 日本語と英語をサポート
-    'batch_size': int(os.getenv('VISION_BATCH_SIZE', '10'))  # OCR処理のバッチサイズ
+    'supported_languages': ['ja', 'en'],
+    'batch_size': int(os.getenv('VISION_BATCH_SIZE', '10')),
+    'default_language_hints': VISION_CONSTANTS['default_language_hints']  # これは問題なく参照できるようになります
 }
 
 # File Processing Configuration
