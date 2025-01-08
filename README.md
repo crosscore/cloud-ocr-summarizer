@@ -12,9 +12,6 @@ gcp-rag-exp/
 │   │   ├── gcp_utils.py            # GCP初期化用
 │   │   └── pdf_utils.py            # PDF処理用
 │   └── main.py                     # エントリーポイント
-├── tests/
-│   ├── __init__.py
-│   └── vision_test.py              # Vision API統合テスト
 ├── config/
 │   └── settings.py                 # 環境変数の設定
 ├── data/
