@@ -266,10 +266,18 @@ class VisionProcessor:
         Returns:
             Dict containing processed block data
         """
+        block_types = {
+            0: 'UNKNOWN',  # Unknown block type
+            1: 'TEXT',     # Regular text block
+            2: 'TABLE',    # Table block
+            3: 'PICTURE',  # Image block
+            4: 'RULER',    # Horizontal/vertical line box
+            5: 'BARCODE',  # Barcode block
+        }
         block_data = {
             'text': '',
             'confidence': block.confidence if self.output_config['include_confidence'] else None,
-            'block_type': str(block.block_type) if hasattr(block, 'block_type') else 'UNKNOWN',
+            'block_type': block_types.get(int(str(block.block_type)), 'UNKNOWN'),
         }
 
         # Add normalized bounding box coordinates
