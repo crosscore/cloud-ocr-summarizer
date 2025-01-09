@@ -3,6 +3,15 @@ python-dotenv
 google-cloud-vision
 google-cloud-storage
 
+# Vertex AI
+# Core dependencies
+python-dotenv
+google-cloud-vision
+google-cloud-storage
+
+# Vertex AI
+anthropic[vertex]
+
 # Utility packages
 python-dateutil
 typing-extensions
