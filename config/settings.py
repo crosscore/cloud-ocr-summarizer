@@ -4,10 +4,8 @@ import os
 from dotenv import load_dotenv
 import datetime
 
-# Load environment variables from .env file
 load_dotenv()
 
-# Project root directory
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Create required directories
@@ -118,41 +116,3 @@ SECURITY_CONFIG: Dict[str, Any] = {
     'data_retention_days': int(os.getenv('DATA_RETENTION_DAYS', '30')),
     'delete_after_processing': os.getenv('DELETE_AFTER_PROCESSING', 'true').lower() == 'true'
 }
-
-# Constants for Vision API
-VISION_CONSTANTS = {
-    'supported_mime_types': {
-        '.pdf': 'application/pdf',
-        '.png': 'image/png',
-        '.jpg': 'image/jpeg',
-        '.jpeg': 'image/jpeg'
-    },
-    'max_pages_per_request': 5,  # Vision APIの1リクエストあたりの最大ページ数
-    'default_language_hints': ['ja', 'en']
-}
-
-# Sample .env file template
-ENV_TEMPLATE = '''
-GCP_PROJECT_ID=your-project-id
-GCP_CREDENTIALS_FILE=service-account-file-path.json
-GCP_STORAGE_BUCKET=your-bucket-name
-GCP_BUCKET_PREFIX=medical_documents/
-GCP_REGION=asia-northeast1
-
-VISION_MAX_RETRIES=3
-VISION_TIMEOUT=30
-VISION_CONFIDENCE_THRESHOLD=0.7
-VISION_BATCH_SIZE=10
-
-LOG_LEVEL=INFO
-ENABLE_AUDIT_LOGS=true
-DATA_RETENTION_DAYS=30
-DELETE_AFTER_PROCESSING=true
-
-# Gemini API settings
-GEMINI_API_KEY=your-api-key
-GEMINI_TEMPERATURE=0.3
-GEMINI_MAX_OUTPUT_TOKENS=2048
-GEMINI_TOP_P=0.8
-GEMINI_TOP_K=40
-'''
