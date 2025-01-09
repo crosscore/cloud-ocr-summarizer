@@ -1,7 +1,6 @@
 import google.generativeai as genai
 import logging
-from typing import Dict, Any, Optional, List
-from ..base.llm_base import LLMBase
+from typing import Dict, Any, Optional
 from config.settings import GEMINI_CONFIG, LOGGING_CONFIG, GCP_CONFIG
 
 logging.basicConfig(
@@ -10,7 +9,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-class GeminiProcessor(LLMBase):
+class GeminiProcessor:
     """
     Gemini model processor for text summarization
     """
@@ -36,7 +35,7 @@ class GeminiProcessor(LLMBase):
             logger.error(f"Failed to initialize Gemini model: {str(e)}")
             raise
 
-    def get_summary(self, ocr_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def process_ocr_data(self, ocr_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
         Generate summary from OCR data
 
@@ -103,7 +102,7 @@ class GeminiProcessor(LLMBase):
             logger.error(f"Error generating summary: {str(e)}")
             return None
 
-    def _get_primary_language_from_pages(self, pages: List[Dict[str, Any]]) -> str:
+    def _get_primary_language_from_pages(self, pages: list[Dict[str, Any]]) -> str:
         """Determine primary language from pages"""
         try:
             for page in pages:

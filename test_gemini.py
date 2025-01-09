@@ -2,7 +2,7 @@ import os
 import json
 import logging
 from config.settings import FILE_CONFIG, LOGGING_CONFIG
-from generative.gcp.gemini import GeminiProcessor
+from src.generative.gcp.gemini import GeminiProcessor
 import datetime
 
 logging.basicConfig(
@@ -40,7 +40,7 @@ def display_summary(summary_data: dict):
         logger.info("\nOverall Summary:")
         logger.info(summary_data['overall_summary'])
 
-def save_summary_result(summary_data: dict, original_filename: str):
+def save_summary_result(summary_data: dict) -> str:
     """Save summary results to a new JSON file"""
     try:
         output_dir = FILE_CONFIG['gemini_output_directory']
@@ -55,7 +55,7 @@ def save_summary_result(summary_data: dict, original_filename: str):
         return output_file
     except Exception as e:
         logger.error(f"Error saving summary: {str(e)}")
-        return None
+        return ""
 
 def main():
     # Initialize processor
@@ -74,7 +74,7 @@ def main():
 
     # Sort by creation time and get the latest
     latest_file = max(ocr_files, key=lambda f: os.path.getctime(os.path.join(output_dir, f)))
-    print(f'latest_file: {latest_file}')
+    logger.info(f'Processing latest OCR result file: {latest_file}')
     file_path = os.path.join(output_dir, latest_file)
 
     # Load OCR result
@@ -84,11 +84,13 @@ def main():
 
     # Generate summary
     logger.info("Generating summary...")
-    summary_result = processor.get_summary(ocr_data)
+    summary_result = processor.process_ocr_data(ocr_data)
 
     if summary_result:
         # Save summary
-        save_summary_result(summary_result, file_path) # 変更: file_pathを渡す
+        output_path = save_summary_result(summary_result)
+        if output_path:
+            logger.info(f"Summary saved to: {output_path}")
 
         # Display results
         display_summary(summary_result)
