@@ -1,8 +1,6 @@
-# gcp-ocr-exp/config/settings.py
 from typing import Dict, Any
 import os
 from dotenv import load_dotenv
-import datetime
 
 load_dotenv()
 

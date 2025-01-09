@@ -1,4 +1,3 @@
-# gcp-ocr-exp/src/processors/vision_processor.py
 import os
 import json
 import logging

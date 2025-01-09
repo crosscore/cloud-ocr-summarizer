@@ -1,4 +1,3 @@
-# gcp-ocr-exp/src/utils/gcp_utils.py
 import os
 import logging
 from typing import Optional, Tuple
@@ -7,7 +6,6 @@ from google.cloud import vision
 from google.oauth2 import service_account
 from config.settings import GCP_CONFIG, LOGGING_CONFIG, VISION_CONSTANTS
 
-# Configure logging
 logging.basicConfig(
     level=getattr(logging, LOGGING_CONFIG['level']),
     format=LOGGING_CONFIG['format'],
