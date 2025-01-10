@@ -122,10 +122,10 @@ class ClaudeProcessor:
             return None
 
     def _invoke_claude_with_retry(self, prompt: str) -> Optional[str]:
-        """Send request to Claude model with exponential backoff retry"""
-        max_retries = 5
-        base_delay = 1  # Initial delay in seconds
-        max_delay = 32  # Maximum delay in seconds
+        """Send request to Claude model with improved exponential backoff retry"""
+        max_retries = 8
+        base_delay = 2
+        max_delay = 64
 
         for attempt in range(max_retries):
             try:
@@ -152,22 +152,28 @@ class ClaudeProcessor:
                 return response_body['content'][0]['text']
 
             except Exception as e:
-                delay = min(base_delay * (2 ** attempt), max_delay)
-                jitter = random.uniform(0, 0.1 * delay)
-                total_delay = delay + jitter
+                if 'ThrottlingException' in str(e):
+                    delay = min(base_delay * (2 ** attempt), max_delay)
+                    jitter = random.uniform(0, 0.3 * delay)
+                    total_delay = delay + jitter
 
-                if attempt < max_retries - 1:
-                    logger.warning(
-                        f"Attempt {attempt + 1} failed: {str(e)}. "
-                        f"Retrying in {total_delay:.2f} seconds..."
-                    )
-                    time.sleep(total_delay)
+                    if attempt < max_retries - 1:
+                        logger.warning(
+                            f"Rate limit hit on attempt {attempt + 1}: {str(e)}. "
+                            f"Waiting {total_delay:.2f} seconds..."
+                        )
+                        time.sleep(total_delay)
+                    else:
+                        logger.error(
+                            f"Failed all {max_retries} attempts to invoke Claude. "
+                            f"Last error: {str(e)}"
+                        )
+                        return None
                 else:
-                    logger.error(
-                        f"Failed all {max_retries} attempts to invoke Claude. "
-                        f"Last error: {str(e)}"
-                    )
-                    return None
+                    logger.error(f"Unexpected error on attempt {attempt + 1}: {str(e)}")
+                    if attempt == max_retries - 1:
+                        return None
+                    time.sleep(base_delay)
 
     def _get_primary_language(self, page: Dict[str, Any]) -> str:
         """Get primary language from page data"""
