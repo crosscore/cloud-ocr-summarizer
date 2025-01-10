@@ -18,10 +18,23 @@ class ClaudeProcessor:
         """Initialize Claude model with configurations"""
         try:
             # Initialize Bedrock client
-            self.bedrock_client = boto3.client(
-                service_name='bedrock-runtime',
+            session = boto3.Session(
+                profile_name='AdministratorAccess-207567758619',
                 region_name=CLAUDE_CONFIG.get('region', 'us-east-1')
             )
+
+            # First, create a bedrock client (not bedrock-runtime) to list models
+            bedrock = session.client('bedrock')
+            try:
+                response = bedrock.list_foundation_models()
+                logger.info("Available models:")
+                for model in response['modelSummaries']:
+                    logger.info(f"  - {model['modelId']}")
+            except Exception as e:
+                logger.error(f"Error listing models: {str(e)}")
+
+            # Then create the runtime client for inference
+            self.bedrock_client = session.client('bedrock-runtime')
             logger.info("Successfully initialized Bedrock client")
 
         except Exception as e:

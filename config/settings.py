@@ -90,7 +90,7 @@ VISION_OUTPUT_CONFIG: Dict[str, Any] = {
 
 # AWS Claude Configuration
 CLAUDE_CONFIG: Dict[str, Any] = {
-    'model': 'anthropic.claude-3-sonnet-20240229-v1:0',  # Bedrock model ID
+    'model': 'anthropic.claude-3-5-sonnet-20240620-v1:0',  # Bedrock model ID
     'temperature': float(os.getenv('CLAUDE_TEMPERATURE', '0.2')),
     'max_output_tokens': int(os.getenv('CLAUDE_MAX_OUTPUT_TOKENS', '2048')),
     'top_p': float(os.getenv('CLAUDE_TOP_P', '0.8')),
