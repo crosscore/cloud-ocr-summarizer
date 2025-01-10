@@ -88,6 +88,26 @@ VISION_OUTPUT_CONFIG: Dict[str, Any] = {
     'save_raw_response': os.getenv('VISION_SAVE_RAW_RESPONSE', 'true').lower() == 'true',
 }
 
+# AWS Claude Configuration
+CLAUDE_CONFIG: Dict[str, Any] = {
+    'model': 'anthropic.claude-3-sonnet-20240229-v1:0',  # Bedrock model ID
+    'temperature': float(os.getenv('CLAUDE_TEMPERATURE', '0.2')),
+    'max_output_tokens': int(os.getenv('CLAUDE_MAX_OUTPUT_TOKENS', '2048')),
+    'top_p': float(os.getenv('CLAUDE_TOP_P', '0.8')),
+    'top_k': int(os.getenv('CLAUDE_TOP_K', '40')),
+    'region': os.getenv('AWS_REGION', 'us-east-1'),
+    'language_settings': {
+        'ja': {
+            'prompt_template': '以下の文書を要約してください：\n{text}\n\n要約：',
+            'max_tokens_per_chunk': 1000
+        },
+        'en': {
+            'prompt_template': 'Please summarize the following document:\n{text}\n\nSummary:',
+            'max_tokens_per_chunk': 1000
+        }
+    }
+}
+
 # File Processing Configuration
 FILE_CONFIG: Dict[str, Any] = {
     'allowed_extensions': ['.pdf', '.png', '.jpg', '.jpeg'],
@@ -96,9 +116,11 @@ FILE_CONFIG: Dict[str, Any] = {
     'output_directory': os.path.join(PROJECT_ROOT, 'data', 'output'),
     'vision_output_directory': os.path.join(PROJECT_ROOT, 'data', 'output', 'vision'),
     'gemini_output_directory': os.path.join(PROJECT_ROOT, 'data', 'output', 'gemini'),
+    'claude_output_directory': os.path.join(PROJECT_ROOT, 'data', 'output', 'claude'),
     'vision_output_filename_pattern': 'vision_results_{timestamp}.json',
     'gemini_output_filename_pattern': 'gemini_summary_{timestamp}.json',
-    'timestamp_format': '%Y%m%d_%H%M%S'
+    'claude_output_filename_pattern': 'claude_summary_{timestamp}.json',
+    'timestamp_format': '%Y%m%d_%H%M%S',
 }
 
 # Logging Configuration
