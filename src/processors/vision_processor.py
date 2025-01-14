@@ -144,7 +144,7 @@ class VisionProcessor:
             return ""
 
     def _process_simple_output(self, response) -> Dict[str, Any]:
-        """Process response in simple mode"""
+        """Process response in simple mode with added type and confidence information"""
         response_dict = {
             'responses': []
         }
@@ -158,10 +158,31 @@ class VisionProcessor:
                 for page_response in file_response.responses:
                     if hasattr(page_response, 'full_text_annotation'):
                         text_annotation = page_response.full_text_annotation
+
+                        # Extract text blocks for type and confidence information
+                        blocks = []
+                        if text_annotation and text_annotation.pages:
+                            page = text_annotation.pages[0]
+                            for block in page.blocks:
+                                block_text = ''
+                                for paragraph in block.paragraphs:
+                                    for word in paragraph.words:
+                                        word_text = ''
+                                        for symbol in word.symbols:
+                                            word_text += symbol.text
+                                        block_text += word_text + ' '
+
+                                blocks.append({
+                                    'text': block_text.strip(),
+                                    'confidence': block.confidence if self.output_config['include_confidence'] else None,
+                                    'block_type': 'TEXT'  # Default to TEXT type in simple mode
+                                })
+
                         page_data = {
                             'page_number': len(file_data['pages']) + 1,
                             'text': text_annotation.text if text_annotation else '',
-                            'confidence': text_annotation.pages[0].confidence if text_annotation and text_annotation.pages else 0.0
+                            'confidence': text_annotation.pages[0].confidence if text_annotation and text_annotation.pages else 0.0,
+                            'blocks': blocks
                         }
 
                         # Add language detection if available
