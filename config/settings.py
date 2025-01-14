@@ -2,7 +2,6 @@ from typing import Dict, Any
 import os
 from dotenv import load_dotenv
 
-# Load environment variables
 load_dotenv()
 
 # Base utility class for configuration
@@ -129,41 +128,46 @@ GCP_CONFIG: Dict[str, Any] = {
     'api_key': os.getenv('GEMINI_API_KEY', '')
 }
 
+class PromptTemplates:
+    """Prompt templates for different languages"""
+    JAPANESE = {
+        'summary': '以下の文書を要約してください：\n{text}\n\n要約：',
+        'max_tokens_per_chunk': 1000
+    }
+
+    ENGLISH = {
+        'summary': 'Please summarize the following document:\n{text}\n\nSummary:',
+        'max_tokens_per_chunk': 1000
+    }
+
 # Gemini Configuration
 GEMINI_CONFIG: Dict[str, Any] = {
     'model': 'gemini-pro',
-    'temperature': BaseConfig.get_env_float('GEMINI_TEMPERATURE', 0.2),
+    'temperature': BaseConfig.get_env_float('GEMINI_TEMPERATURE', 0.3),
     'max_output_tokens': BaseConfig.get_env_int('GEMINI_MAX_OUTPUT_TOKENS', 2048),
     'top_p': BaseConfig.get_env_float('GEMINI_TOP_P', 0.8),
     'top_k': BaseConfig.get_env_int('GEMINI_TOP_K', 40),
     'language_settings': {
-        'ja': {
-            'prompt_template': '以下の文書を要約してください：\n{text}\n\n要約：',
-            'max_tokens_per_chunk': 1000
-        },
-        'en': {
-            'prompt_template': 'Please summarize the following document:\n{text}\n\nSummary:',
-            'max_tokens_per_chunk': 1000
-        }
+        'ja': PromptTemplates.JAPANESE,
+        'en': PromptTemplates.ENGLISH
     }
 }
 
 # Claude Configuration
 CLAUDE_CONFIG: Dict[str, Any] = {
-    'model': 'anthropic.claude-3-5-sonnet-20240620-v1:0',  # Bedrock model ID
+    'model': 'anthropic.claude-3-sonnet-20240307-v1:0',
     'temperature': BaseConfig.get_env_float('CLAUDE_TEMPERATURE', 0.2),
     'max_output_tokens': BaseConfig.get_env_int('CLAUDE_MAX_OUTPUT_TOKENS', 2048),
     'top_p': BaseConfig.get_env_float('CLAUDE_TOP_P', 0.8),
     'top_k': BaseConfig.get_env_int('CLAUDE_TOP_K', 40),
     'region': os.getenv('AWS_REGION', 'us-east-1'),
+    'aws_profile': os.getenv('AWS_PROFILE', 'default'),
+    'api_version': 'bedrock-2023-05-31',
+    'max_retries': 8,
+    'base_delay': 2.0,
+    'max_delay': 64.0,
     'language_settings': {
-        'ja': {
-            'prompt_template': '以下の文書を要約してください：\n{text}\n\n要約：',
-            'max_tokens_per_chunk': 1000
-        },
-        'en': {
-            'prompt_template': 'Please summarize the following document:\n{text}\n\nSummary:',
-            'max_tokens_per_chunk': 1000
-        }
+        'ja': PromptTemplates.JAPANESE,
+        'en': PromptTemplates.ENGLISH
     }
 }

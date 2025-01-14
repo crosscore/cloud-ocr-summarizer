@@ -10,16 +10,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class GeminiProcessor:
-    """
-    Gemini model processor for text summarization
-    """
     def __init__(self):
         """Initialize Gemini model with configurations"""
         try:
-            # Configure Gemini with API key only
             genai.configure(api_key=GCP_CONFIG['api_key'])
-
-            # Initialize model with generation config
             self.model = genai.GenerativeModel(
                 model_name=GEMINI_CONFIG['model'],
                 generation_config=genai.types.GenerationConfig(
@@ -30,7 +24,6 @@ class GeminiProcessor:
                 )
             )
             logger.info("Successfully initialized Gemini model")
-
         except Exception as e:
             logger.error(f"Failed to initialize Gemini model: {str(e)}")
             raise
@@ -130,12 +123,12 @@ class GeminiProcessor:
     ) -> Optional[str]:
         """Generate summary for a single page"""
         try:
-            prompt = language_settings['prompt_template'].format(text=text)
+            # Use 'summary' key instead of 'prompt_template'
+            prompt = language_settings['summary'].format(text=text)
             response = self.model.generate_content(prompt)
             if response and response.text:
                 return response.text.strip()
             return None
-
         except Exception as e:
             logger.error(f"Error generating summary for page {page_number}: {str(e)}")
             return None
@@ -147,12 +140,12 @@ class GeminiProcessor:
     ) -> Optional[str]:
         """Generate overall summary from page summaries"""
         try:
-            prompt = language_settings['prompt_template'].format(text=combined_summaries)
+            # Use 'summary' key instead of 'prompt_template'
+            prompt = language_settings['summary'].format(text=combined_summaries)
             response = self.model.generate_content(prompt)
             if response and response.text:
                 return response.text.strip()
             return None
-
         except Exception as e:
             logger.error(f"Error generating overall summary: {str(e)}")
             return None

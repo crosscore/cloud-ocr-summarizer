@@ -19,7 +19,7 @@ class ClaudeProcessor:
         """Initialize Claude model with configurations"""
         try:
             session = boto3.Session(
-                profile_name='AdministratorAccess-207567758619',
+                profile_name=CLAUDE_CONFIG['aws_profile'],
                 region_name=CLAUDE_CONFIG.get('region', 'us-east-1')
             )
             self.bedrock_client = session.client('bedrock-runtime')
@@ -94,7 +94,8 @@ class ClaudeProcessor:
     ) -> Optional[str]:
         """Generate summary for a single page with retry logic"""
         try:
-            prompt = language_settings['prompt_template'].format(text=text)
+            # Use 'summary' key instead of 'prompt_template'
+            prompt = language_settings['summary'].format(text=text)
             response = self._invoke_claude_with_retry(prompt)
             if response:
                 return response.strip()
@@ -111,7 +112,8 @@ class ClaudeProcessor:
     ) -> Optional[str]:
         """Generate overall summary from page summaries with retry logic"""
         try:
-            prompt = language_settings['prompt_template'].format(text=combined_summaries)
+            # Use 'summary' key instead of 'prompt_template'
+            prompt = language_settings['summary'].format(text=combined_summaries)
             response = self._invoke_claude_with_retry(prompt)
             if response:
                 return response.strip()
@@ -123,14 +125,14 @@ class ClaudeProcessor:
 
     def _invoke_claude_with_retry(self, prompt: str) -> Optional[str]:
         """Send request to Claude model with improved exponential backoff retry"""
-        max_retries = 8
-        base_delay = 2
-        max_delay = 64
+        max_retries = CLAUDE_CONFIG['max_retries']
+        base_delay = CLAUDE_CONFIG['base_delay']
+        max_delay = CLAUDE_CONFIG['max_delay']
 
         for attempt in range(max_retries):
             try:
                 request_body = {
-                    "anthropic_version": "bedrock-2023-05-31",
+                    "anthropic_version": CLAUDE_CONFIG['api_version'],
                     "max_tokens": CLAUDE_CONFIG['max_output_tokens'],
                     "temperature": CLAUDE_CONFIG['temperature'],
                     "top_p": CLAUDE_CONFIG['top_p'],
