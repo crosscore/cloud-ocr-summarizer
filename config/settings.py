@@ -31,7 +31,7 @@ VISION_CONSTANTS = {
         '.jpg': 'image/jpeg',
         '.jpeg': 'image/jpeg'
     },
-    'max_pages_per_request': 5,  # Vision APIの1リクエストあたりの最大ページ数
+    'max_pages_per_request': 5,
     'default_language_hints': ['ja', 'en']
 }
 
