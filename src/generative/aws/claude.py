@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 import boto3
 from config import CLAUDE_CONFIG, LOGGING_CONFIG
 import random

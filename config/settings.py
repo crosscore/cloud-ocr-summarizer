@@ -104,7 +104,7 @@ VISION_CONFIG: Dict[str, Any] = {
 
 # Vision API Output Configuration
 VISION_OUTPUT_CONFIG: Dict[str, Any] = {
-    'output_mode': os.getenv('VISION_OUTPUT_MODE', 'detailed'),
+    'output_mode': os.getenv('VISION_OUTPUT_MODE', 'simple'), # 'detailed' or 'simple'
     'include_confidence': BaseConfig.get_env_bool('VISION_INCLUDE_CONFIDENCE', True),
     'include_bounding_boxes': BaseConfig.get_env_bool('VISION_INCLUDE_BOUNDING_BOXES', True),
     'min_confidence_threshold': BaseConfig.get_env_float('VISION_MIN_CONFIDENCE', 0.0),
