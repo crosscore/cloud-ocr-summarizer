@@ -10,7 +10,7 @@ logging.basicConfig(
     format=LOGGING_CONFIG['format'],
     handlers=[
         logging.FileHandler(LOGGING_CONFIG['file_path']),
-        logging.StreamHandler()  # 標準出力にも表示
+        logging.StreamHandler()
     ]
 )
 logger = logging.getLogger(__name__)
