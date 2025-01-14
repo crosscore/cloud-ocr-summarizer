@@ -187,7 +187,7 @@ class ClaudeProcessor:
                 )
                 if langs:
                     return langs[0]['language_code']
-            return 'ja'  # デフォルト言語として日本語を使用
+            return 'ja'  # Default to Japanese if no language detected
 
         except Exception as e:
             logger.warning(f"Error detecting language: {str(e)}. Defaulting to Japanese.")
