@@ -1,7 +1,7 @@
 import json
 from typing import Dict, Any
 import logging
-from config.settings import LOGGING_CONFIG
+from config import LOGGING_CONFIG
 
 logging.basicConfig(
     level=getattr(logging, LOGGING_CONFIG['level']),

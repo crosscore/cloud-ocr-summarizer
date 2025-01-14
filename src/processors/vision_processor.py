@@ -4,7 +4,7 @@ import logging
 from typing import Dict, Any
 from datetime import datetime
 from google.cloud import vision
-from config.settings import (
+from config import (
     VISION_CONFIG, FILE_CONFIG,
     VISION_CONSTANTS, VISION_OUTPUT_CONFIG
 )

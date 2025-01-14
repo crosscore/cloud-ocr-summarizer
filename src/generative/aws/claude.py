@@ -2,7 +2,7 @@ import json
 import logging
 from typing import Dict, Any, Optional, List
 import boto3
-from config.settings import CLAUDE_CONFIG, LOGGING_CONFIG
+from config import CLAUDE_CONFIG, LOGGING_CONFIG
 import random
 import time
 

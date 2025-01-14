@@ -4,7 +4,7 @@ from typing import Optional, Tuple
 from google.cloud import storage
 from google.cloud import vision
 from google.oauth2 import service_account
-from config.settings import GCP_CONFIG, LOGGING_CONFIG, VISION_CONSTANTS
+from config import GCP_CONFIG, LOGGING_CONFIG, VISION_CONSTANTS
 
 logging.basicConfig(
     level=getattr(logging, LOGGING_CONFIG['level']),

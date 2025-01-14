@@ -1,7 +1,7 @@
 import google.generativeai as genai
 import logging
 from typing import Dict, Any, Optional
-from config.settings import GEMINI_CONFIG, LOGGING_CONFIG, GCP_CONFIG
+from config import GEMINI_CONFIG, LOGGING_CONFIG, GCP_CONFIG
 
 logging.basicConfig(
     level=getattr(logging, LOGGING_CONFIG['level']),

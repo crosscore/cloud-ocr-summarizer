@@ -1,7 +1,7 @@
 from src.processors.vision_processor import VisionProcessor
 from src.utils.token_counter import TokenCounter
 import logging
-from config.settings import LOGGING_CONFIG, FILE_CONFIG
+from config import LOGGING_CONFIG, FILE_CONFIG
 import os
 import json
 

@@ -1,7 +1,7 @@
 import os
 import json
 import logging
-from config.settings import FILE_CONFIG, LOGGING_CONFIG
+from config import FILE_CONFIG, LOGGING_CONFIG
 from src.generative.aws.claude import ClaudeProcessor
 import datetime
 
