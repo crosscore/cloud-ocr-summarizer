@@ -27,6 +27,7 @@ def load_ocr_result(file_path: str):
 def display_results(result_data, result_path):
     """
     Display the OCR results in a readable format and log token statistics
+    Supports both simple and detailed JSON formats
     """
     logger.info("=== OCR Processing Results ===")
 
@@ -73,9 +74,32 @@ def display_results(result_data, result_path):
             page_number = page.get('page_number', 'Unknown')
             logger.info(f"\nPage {page_number}:")
 
-            blocks = page.get('blocks', [])
-            for i, block in enumerate(blocks[:3], 1):
-                logger.info(f"  Block {i}: {block.get('text', '')}")
+            # Check if the page has blocks (detailed mode)
+            if 'blocks' in page and page['blocks']:
+                # Display first 3 blocks
+                for i, block in enumerate(page['blocks'][:3], 1):
+                    if block.get('text'):
+                        logger.info(f"  Block {i}: {block['text']}")
+
+                        # Optionally display confidence for each block
+                        if block.get('confidence') is not None:
+                            logger.info(f"    Confidence: {block['confidence']:.2f}")
+
+                        # Display block type if available
+                        if block.get('block_type'):
+                            logger.info(f"    Type: {block['block_type']}")
+
+            # If no blocks are present (simple mode), display the text directly
+            elif 'text' in page:
+                lines = page['text'].split('\n')
+                # Display first 3 lines
+                for i, line in enumerate(lines[:3], 1):
+                    if line.strip():  # Only show non-empty lines
+                        logger.info(f"  Line {i}: {line}")
+
+            # Add a separator line between pages for better readability
+            logger.info("  " + "-" * 50)
+
 
 def main():
     # Initialize processor
@@ -88,7 +112,7 @@ def main():
     # Process test file
     logger.info("Starting document processing...")
 
-    test_file = os.path.join(FILE_CONFIG['input_directory'], "test_ocr.pdf")
+    test_file = os.path.join(FILE_CONFIG['input_directory'], "test_page.pdf")
 
     # Check if test file exists
     if not os.path.exists(test_file):

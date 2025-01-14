@@ -59,7 +59,7 @@ class TokenCounter:
     @staticmethod
     def _count_structure(obj: Any, depth: int = 0) -> int:
         """Recursively counts tokens in a data structure"""
-        if depth > 100:  # 再帰の深さ制限
+        if depth > 100:
             logger.warning("Maximum recursion depth exceeded")
             return 0
 
