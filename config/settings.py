@@ -155,7 +155,7 @@ GEMINI_CONFIG: Dict[str, Any] = {
 
 # Claude Configuration
 CLAUDE_CONFIG: Dict[str, Any] = {
-    'model': 'anthropic.claude-3-sonnet-20240307-v1:0',
+    'model': 'anthropic.claude-3-5-sonnet-20240620-v1:0',
     'temperature': BaseConfig.get_env_float('CLAUDE_TEMPERATURE', 0.2),
     'max_output_tokens': BaseConfig.get_env_int('CLAUDE_MAX_OUTPUT_TOKENS', 2048),
     'top_p': BaseConfig.get_env_float('CLAUDE_TOP_P', 0.8),
