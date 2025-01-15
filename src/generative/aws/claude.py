@@ -94,7 +94,6 @@ class ClaudeProcessor:
     ) -> Optional[str]:
         """Generate summary for a single page with retry logic"""
         try:
-            # Use 'summary' key instead of 'prompt_template'
             prompt = language_settings['summary'].format(text=text)
             response = self._invoke_claude_with_retry(prompt)
             if response:
@@ -112,7 +111,6 @@ class ClaudeProcessor:
     ) -> Optional[str]:
         """Generate overall summary from page summaries with retry logic"""
         try:
-            # Use 'summary' key instead of 'prompt_template'
             prompt = language_settings['summary'].format(text=combined_summaries)
             response = self._invoke_claude_with_retry(prompt)
             if response:

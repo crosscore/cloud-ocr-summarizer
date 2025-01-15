@@ -123,7 +123,6 @@ class GeminiProcessor:
     ) -> Optional[str]:
         """Generate summary for a single page"""
         try:
-            # Use 'summary' key instead of 'prompt_template'
             prompt = language_settings['summary'].format(text=text)
             response = self.model.generate_content(prompt)
             if response and response.text:
@@ -140,7 +139,6 @@ class GeminiProcessor:
     ) -> Optional[str]:
         """Generate overall summary from page summaries"""
         try:
-            # Use 'summary' key instead of 'prompt_template'
             prompt = language_settings['summary'].format(text=combined_summaries)
             response = self.model.generate_content(prompt)
             if response and response.text:
